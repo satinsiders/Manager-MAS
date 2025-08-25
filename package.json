@@ -1,0 +1,20 @@
+{
+  "name": "manager-mas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "openai": "^4.0.0",
+    "@upstash/redis": "^1.22.0",
+    "node-fetch": "^3.3.2",
+    "@vercel/node": "^2.10.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2",
+    "@types/node": "^20.4.2"
+  }
+}
