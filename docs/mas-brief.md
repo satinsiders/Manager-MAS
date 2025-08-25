@@ -9,6 +9,14 @@ Provide fully personalized SAT prep.
 
 All processes are driven by an LLM-based multi-agent system with observability and version control.
 
+## 1. Content Hierarchy & Delivery Flow
+
+- All lessons and curricula live in the SuperfastSAT CMS, which syncs with the LMS.
+- A curriculum contains multiple lessons, each lesson contains multiple units (questions).
+- Each unit is tagged with the expected number of minutes needed to solve it.
+- When curricula are assigned to students, they remain hidden until content is explicitly **sent** on the LMS.
+- From the LMS, the Manager MAS assigns the curriculum when necessary and dispatches units within the appropriate curriculum in minute-based volumes. Sending 10 minutes delivers enough units to total that time (e.g., ten 1‑minute questions).
+
 ## 2. Agents & One-Sentence Contracts
 
 | Agent | Trigger | Responsibility |
