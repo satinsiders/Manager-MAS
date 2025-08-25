@@ -1,0 +1,16 @@
+name: Daily MAS Run
+
+on:
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger orchestrator
+        env:
+          ORCH_URL: ${{ secrets.DAILY_ORCH_URL }}
+        run: |
+          curl -X POST "$ORCH_URL" -H "Authorization: Bearer ${{ secrets.ORCH_TOKEN }}"
