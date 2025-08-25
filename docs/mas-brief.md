@@ -25,7 +25,7 @@ All processes are driven by an LLM-based multi-agent system with observability a
 | Orchestrator | All triggers | Pass context to required sub-agents and manage retries and logging. |
 | Lesson Picker | 07:00 | Select `next_lesson_id` and supplementary problem set for each student using vector similarity and rule filters. |
 | Dispatcher | Immediately after selection | Send lessons and metadata to the SuperfastSAT platform and record in `dispatch_log`. |
-| Performance Recorder | Upon score arrival | Append `{student_id, lesson_id, score, timestamp}` to the `performances` table. |
+| Performance Recorder | Upon score arrival | Append `{student_id, lesson_id, score, confidence_rating}` to the `performances` table. |
 | Data Aggregator | Fri 23:00 | Generate `performance_summary.json` by combining weekly performances and charts. |
 | Curriculum Editor | After aggregation | Produce new `curriculum_v(X+1)` JSON. |
 | QA & Formatter | Immediately after edit | Validate JSON schema/style and update student pointers to the new version. |
@@ -39,7 +39,7 @@ All processes are driven by an LLM-based multi-agent system with observability a
 |-------|------------|---------|
 | `students` | `id, name, timezone, current_curriculum_version, last_lesson_sent` | Manage personalization status |
 | `lessons` | `id, topic, difficulty, asset_url, vector_embedding` | Fixed lesson catalog |
-| `performances` | `id, student_id, lesson_id, score, timestamp` | Source data for learning results |
+| `performances` | `id, student_id, lesson_id, score, confidence_rating` | Source data for learning results |
 | `curricula` | `version, student_id, lesson_ids[], notes` | Version-controlled learning plan |
 | `assignments` | `id, lesson_id, student_id, questions_json, generated_by` | Supplementary problem sets |
 | `dispatch_log` | `id, student_id, lesson_id, sent_at, channel, status` | Operational visibility |
