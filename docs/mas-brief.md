@@ -78,7 +78,6 @@ Accuracy priority: External evidence > Long-term > Short-term > Working.
 | Cache/STM | Upstash Redis |
 | Scheduling | GitHub Actions cron |
 | Runtime | Vercel Functions (Node/TS, OpenAI SDK) |
-| Messaging | Twilio WhatsApp, SendGrid |
 | Observability | GitHub Actions logs + Slack Webhook (Grafana optional) |
 
 ## 7. Four-Week Build Roadmap
