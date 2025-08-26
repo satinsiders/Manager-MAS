@@ -5,15 +5,16 @@ import { Redis } from '@upstash/redis';
 const redis = Redis.fromEnv();
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { student_id, lesson_id, score } = req.body as {
+  const { student_id, lesson_id, score, confidence_rating } = req.body as {
     student_id: string;
     lesson_id: string;
     score: number;
+    confidence_rating?: number;
   };
   try {
     const { data } = await supabase
       .from('performances')
-      .insert({ student_id, lesson_id, score })
+      .insert({ student_id, lesson_id, score, confidence_rating })
       .select()
       .single();
 
