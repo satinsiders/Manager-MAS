@@ -1,6 +1,6 @@
 # Manager-MAS
 
-SuperfastSAT Multi-Agent System scaffold.
+SuperfastSAT Multi-Agent System scaffold. This project uses the OpenAI Responses API and the OpenAI SDK.
 
 ## Structure
 
