@@ -22,11 +22,25 @@ process.env.QA_FORMATTER_URL = 'http://example.com';
     from: () => ({
       download: async (path: string) => {
         requestedPath = path;
-        return { text: async () => '{}' } as any;
+        return {
+          data: {
+            text: async () =>
+              JSON.stringify({
+                students: [
+                  { student_id: '1', avg: 1 },
+                  { student_id: '2', avg: 2 },
+                ],
+              }),
+          },
+        } as any;
       },
     }),
   } as any;
 
-  await fetchLatestSummary();
+  const summaries = await fetchLatestSummary();
   assert.equal(requestedPath, LATEST_SUMMARY_PATH);
+  assert.equal(Array.isArray(summaries), true);
+  assert.equal(summaries.length, 2);
+  assert.equal(summaries[0].summary.student_id, '1');
+  assert.equal(summaries[1].summary.student_id, '2');
 })();
