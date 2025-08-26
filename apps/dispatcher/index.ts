@@ -2,12 +2,13 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from '../../packages/shared/supabase';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Incoming requests must provide the dispatch log's ID.
   const { log_id } = req.body as { log_id: string };
   try {
     const { data: log } = await supabase
       .from('dispatch_log')
       .select('*')
-      .eq('id', log_id)
+      .eq('id', log_id) // Lookup solely by the provided log_id
       .single();
 
     if (log) {

@@ -37,12 +37,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
 
         if (pickerResp) {
+          const pickerData = (await pickerResp.json()) as { log_id?: string };
           await callWithRetry(
             DISPATCHER_URL,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ student_id: student.id })
+              body: JSON.stringify({ log_id: pickerData.log_id })
             },
             runType,
             `dispatcher:${student.id}`
