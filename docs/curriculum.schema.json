@@ -26,6 +26,7 @@
           "units": {
             "type": "array",
             "minItems": 1,
+            "uniqueItemProperties": ["id"],
             "items": {
               "type": "object",
               "required": ["id", "duration_minutes"],

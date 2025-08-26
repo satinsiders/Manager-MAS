@@ -1,9 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Ajv from 'ajv';
+import addKeywords from 'ajv-keywords';
+import addFormats from 'ajv-formats';
 import schema from '../../docs/curriculum.schema.json';
 import { supabase } from '../../packages/shared/supabase';
 import { notify } from '../../packages/shared/notify';
 const ajv = new Ajv({ allErrors: true });
+addFormats(ajv);
+addKeywords(ajv, ['uniqueItemProperties']);
 const validate = ajv.compile(schema);
 
 function enforceStyle(curriculum: any) {
@@ -18,13 +22,23 @@ function enforceStyle(curriculum: any) {
   if (Array.isArray(curriculum.lessons)) {
     for (const lesson of curriculum.lessons) {
       if (Array.isArray(lesson.units)) {
-        lesson.units = lesson.units.map((unit: any) => ({
-          ...unit,
-          duration_minutes: Math.max(
-            1,
-            Math.round(Number(unit.duration_minutes))
-          )
-        }));
+        const seen = new Set<string>();
+        lesson.units = lesson.units.map((unit: any) => {
+          if (!unit.id || unit.duration_minutes == null) {
+            throw new Error('unit missing id or duration_minutes');
+          }
+          if (seen.has(unit.id)) {
+            throw new Error(`duplicate unit id ${unit.id} in lesson ${lesson.id}`);
+          }
+          seen.add(unit.id);
+          return {
+            ...unit,
+            duration_minutes: Math.max(
+              1,
+              Math.round(Number(unit.duration_minutes))
+            )
+          };
+        });
       }
     }
   }
@@ -40,7 +54,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    enforceStyle(curriculum);
+    try {
+      enforceStyle(curriculum);
+    } catch (err: any) {
+      const message = `Curriculum validation failed: ${err.message}`;
+      await notify(message, 'qa-formatter');
+      res.status(400).json({ error: 'invalid curriculum' });
+      return;
+    }
 
     await supabase
       .from('curricula')
