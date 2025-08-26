@@ -34,3 +34,16 @@ npm test
 ## Notes
 
 Tables `lessons`, `performances`, `assignments` and historical `curricula` are append-only. `students.current_curriculum_version` is mutable.
+
+## API
+
+### Score Recorder
+
+`POST /api/score-recorder`
+
+Body parameters:
+
+- `student_id` – UUID of the student
+- `lesson_id` – UUID of the lesson
+- `score` – numeric performance score
+- `confidence_rating` – optional numeric rating representing the student's confidence
