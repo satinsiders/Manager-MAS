@@ -1,0 +1,71 @@
+import OpenAI from 'openai';
+
+// `agents` is a new beta feature and may not be typed yet in the SDK, so we
+// cast the client to `any` when calling it.
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const betaClient = client as any;
+
+interface AgentSpec {
+  name: string;
+  instructions: string;
+}
+
+const agents: AgentSpec[] = [
+  {
+    name: 'Scheduler',
+    instructions: 'Call daily and weekly jobs at the exact time.'
+  },
+  {
+    name: 'Orchestrator',
+    instructions: 'Pass context to required sub-agents and manage retries and logging.'
+  },
+  {
+    name: 'Lesson Picker',
+    instructions:
+      'Select `next_lesson_id` and supplementary problem set for each student using vector similarity and rule filters.'
+  },
+  {
+    name: 'Dispatcher',
+    instructions: 'Send lessons and metadata to the SuperfastSAT platform and record in `dispatch_log`.'
+  },
+  {
+    name: 'Performance Recorder',
+    instructions:
+      'Append `{student_id, lesson_id, score, confidence_rating}` to the `performances` table.'
+  },
+  {
+    name: 'Data Aggregator',
+    instructions:
+      'Generate `performance_summary.json` by combining weekly performances and charts.'
+  },
+  {
+    name: 'Curriculum Editor',
+    instructions: 'Produce new `curriculum_v(X+1)` JSON.'
+  },
+  {
+    name: 'QA & Formatter',
+    instructions: 'Validate curriculum JSON schema and style then update student pointers to the new version.'
+  },
+  {
+    name: 'Notification Bot',
+    instructions: 'Notify key events via Slack direct message.'
+  }
+];
+
+async function setupAgents() {
+  for (const spec of agents) {
+    const created = await betaClient.agents.create({
+      name: spec.name,
+      instructions: spec.instructions,
+      model: 'gpt-4.1-mini'
+    });
+    console.log(`${spec.name} -> ${created.id}`);
+  }
+}
+
+if (require.main === module) {
+  setupAgents().catch((err) => {
+    console.error('Failed to setup agents:', err);
+    process.exit(1);
+  });
+}
