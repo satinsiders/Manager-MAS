@@ -1,8 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from '../../packages/shared/supabase';
 import { Redis } from '@upstash/redis';
+import OpenAI from 'openai';
 
 const redis = Redis.fromEnv();
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { student_id } = req.body as { student_id: string };
@@ -17,14 +19,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('Lesson picker', { student, recentScores });
 
-    // TODO: vector similarity search on lessons table
-    const { data: lesson } = await supabase
-      .from('lessons')
-      .select('id')
-      .limit(1)
-      .single();
+    const topics = (student as any)?.preferred_topics ?? [];
+    const queryText = `Preferred topics: ${topics.join(', ')}. Recent scores: ${recentScores.join(', ')}`;
+    const embeddingResponse = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: queryText
+    });
+    const queryEmbedding = embeddingResponse.data[0].embedding;
 
-    if (lesson && student) {
+    const { data: matches } = await supabase.rpc('match_lessons', {
+      query_embedding: queryEmbedding,
+      match_threshold: 0.75,
+      match_count: 5
+    });
+
+    const { data: previous } = await supabase
+      .from('dispatch_log')
+      .select('lesson_id')
+      .eq('student_id', student_id);
+    const dispatchedIds = previous?.map((d: any) => d.lesson_id) ?? [];
+
+    const avgScore =
+      recentScores.length > 0
+        ? recentScores.map(Number).reduce((a, b) => a + b, 0) / recentScores.length
+        : 0;
+    const maxDifficulty = Math.max(1, Math.round(avgScore / 20));
+
+    const lesson = matches?.find(
+      (m: any) => m.difficulty <= maxDifficulty && !dispatchedIds.includes(m.id)
+    );
+
+    let assignmentId: string | undefined;
+    if (lesson && avgScore < 60) {
+      const { data: assignment } = await supabase
+        .from('assignments')
+        .insert({
+          lesson_id: lesson.id,
+          student_id,
+          questions_json: {},
+          generated_by: 'lesson-picker'
+        })
+        .select('id')
+        .single();
+      assignmentId = assignment?.id;
+    }
+
+    if (lesson) {
       await supabase.from('dispatch_log').insert({
         student_id,
         lesson_id: lesson.id,
@@ -33,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    res.status(200).json({ lesson_id: lesson?.id });
+    res.status(200).json({ lesson_id: lesson?.id, assignment_id: assignmentId });
   } catch (err:any) {
     console.error(err);
     res.status(500).json({ error: 'lesson selection failed' });
