@@ -57,7 +57,7 @@ async function setupAgents() {
     const created = await betaClient.agents.create({
       name: spec.name,
       instructions: spec.instructions,
-      model: 'gpt-4.1-mini'
+      model: 'gpt-5-nano'
     });
     console.log(`${spec.name} -> ${created.id}`);
   }
