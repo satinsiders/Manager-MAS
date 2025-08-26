@@ -8,6 +8,7 @@ import {
   QA_FORMATTER_URL
 } from '../../packages/shared/config';
 import { callWithRetry } from '../../packages/shared/retry';
+import { notify } from '../../packages/shared/notify';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const runType = req.query.run_type as string;
@@ -68,9 +69,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'qa-formatter'
       );
     }
+    await notify(`Orchestrator ${runType} run succeeded`, 'orchestrator');
     res.status(200).json({ status: 'ok' });
   } catch (err: any) {
     console.error(err);
+    await notify(
+      `Orchestrator ${runType} run failed: ${err.message}`,
+      'orchestrator'
+    );
     res.status(500).json({ error: 'orchestration failed' });
   }
 }

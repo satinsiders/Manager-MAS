@@ -2,8 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Ajv from 'ajv';
 import schema from '../../docs/curriculum.schema.json';
 import { supabase } from '../../packages/shared/supabase';
-import { NOTIFICATION_BOT_URL } from '../../packages/shared/config';
-import { callWithRetry } from '../../packages/shared/retry';
+import { notify } from '../../packages/shared/notify';
 const ajv = new Ajv({ allErrors: true });
 const validate = ajv.compile(schema);
 
@@ -36,16 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (!validate(curriculum)) {
       const message = `Curriculum validation failed: ${ajv.errorsText(validate.errors)}`;
-      await callWithRetry(
-        NOTIFICATION_BOT_URL,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: message })
-        },
-        'qa-formatter',
-        'notify'
-      );
+      await notify(message, 'qa-formatter');
       res.status(400).json({ error: 'invalid curriculum' });
       return;
     }
