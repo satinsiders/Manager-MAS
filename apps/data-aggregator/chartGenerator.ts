@@ -1,5 +1,5 @@
-import fetch from 'node-fetch';
 import { supabase } from '../../packages/shared/supabase';
+import { callWithRetry } from '../../packages/shared/retry';
 
 export interface PerformancePoint {
   timestamp: string;
@@ -37,7 +37,13 @@ export async function generatePerformanceChart(
     JSON.stringify(chartConfig)
   )}&format=png`;
 
-  const response = await fetch(url);
+  const response = await callWithRetry(
+    url,
+    {},
+    'data-aggregator',
+    'chart-generation'
+  );
+  if (!response) throw new Error('chart fetch failed');
   const arrayBuffer = await response.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
