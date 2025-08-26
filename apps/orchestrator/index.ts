@@ -25,18 +25,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq('active', true);
 
       for (const student of students ?? []) {
-        const pickerResp = await callWithRetry(
-          LESSON_PICKER_URL,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ student_id: student.id })
-          },
-          runType,
-          `lesson-picker:${student.id}`
-        );
+        try {
+          await callWithRetry(
+            LESSON_PICKER_URL,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ student_id: student.id })
+            },
+            runType,
+            `lesson-picker:${student.id}`
+          );
 
-        if (pickerResp) {
           await callWithRetry(
             DISPATCHER_URL,
             {
@@ -47,6 +47,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             runType,
             `dispatcher:${student.id}`
           );
+        } catch (err) {
+          console.error(`Failed processing student ${student.id}:`, err);
         }
       }
     } else {

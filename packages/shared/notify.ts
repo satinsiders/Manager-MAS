@@ -18,8 +18,9 @@ export async function notify(text: string, runType: string) {
       runType,
       'notify'
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Log only the error message to avoid leaking sensitive data
-    console.error('Notification failed:', err.message);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Notification failed:', message);
   }
 }

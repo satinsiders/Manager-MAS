@@ -6,11 +6,13 @@ export async function callWithRetry(
   options: any,
   runType: string,
   step: string,
-  retries = 3
-): Promise<Response | null> {
+  retries = 3,
+  fetchFn: typeof fetch = fetch
+): Promise<Response> {
+  let lastErr: any;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const resp = await fetch(url, options);
+      const resp = await fetchFn(url, options);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       await supabase.from('orchestrator_log').insert({
         run_type: runType,
@@ -20,6 +22,7 @@ export async function callWithRetry(
       });
       return resp;
     } catch (err: any) {
+      lastErr = err;
       if (attempt === retries) {
         await supabase.from('orchestrator_log').insert({
           run_type: runType,
@@ -28,10 +31,10 @@ export async function callWithRetry(
           message: err.message,
           run_at: new Date().toISOString(),
         });
-        return null;
+        throw err;
       }
     }
   }
-  return null;
+  throw lastErr;
 }
 
