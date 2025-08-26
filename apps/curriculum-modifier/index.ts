@@ -22,10 +22,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .select('id, topic, difficulty')
       .limit(10);
 
-    // 3. Ask OpenAI to propose a new lesson sequence
-    const prompt = `Given the performance summary and candidate lessons, ` +
-      `propose a new lesson sequence for the student and return JSON with "lesson_ids" ` +
-      `and "notes".\nPerformance Summary:\n${summaryText}\nCandidate Lessons:\n${JSON.stringify(lessons)}`;
+    // 3. Ask OpenAI to propose a new curriculum structure
+    const prompt =
+      `Given the performance summary and candidate lessons, propose a new curriculum ` +
+      `for the student and return JSON with \"lessons\" (each with units containing id and duration_minutes) ` +
+      `and \"notes\".\nPerformance Summary:\n${summaryText}\nCandidate Lessons:\n${JSON.stringify(lessons)}`;
 
     const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
     const completion = await openai.chat.completions.create({
@@ -38,7 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       proposal = JSON.parse(llmResponse);
     } catch {
-      proposal = { lesson_ids: [], notes: 'LLM response parsing failed' };
+      proposal = { lessons: [], notes: 'LLM response parsing failed' };
     }
 
     // 4. Determine next curriculum version for the student
@@ -50,11 +51,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .limit(1);
     const newVersion = last && last.length > 0 ? last[0].version + 1 : 1;
 
+    const curriculum = {
+      version: newVersion,
+      student_id,
+      notes: proposal.notes || '',
+      lessons: proposal.lessons || []
+    };
+
     await supabase.from('curricula').insert({
       version: newVersion,
       student_id,
-      lesson_ids: proposal.lesson_ids || [],
-      notes: proposal.notes || ''
+      curriculum
     });
 
     // 5. Store prompt and response for audit trail

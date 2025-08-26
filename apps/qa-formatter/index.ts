@@ -16,6 +16,19 @@ function enforceStyle(curriculum: any) {
       curriculum.notes = notes;
     }
   }
+  if (Array.isArray(curriculum.lessons)) {
+    for (const lesson of curriculum.lessons) {
+      if (Array.isArray(lesson.units)) {
+        lesson.units = lesson.units.map((unit: any) => ({
+          ...unit,
+          duration_minutes: Math.max(
+            1,
+            Math.round(Number(unit.duration_minutes))
+          )
+        }));
+      }
+    }
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -42,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await supabase
       .from('curricula')
       .update({
-        notes: curriculum.notes,
+        curriculum,
         qa_user,
         approved_at: new Date().toISOString()
       })
