@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createHash } from 'crypto';
 import { supabase } from '../../packages/shared/supabase';
+import { LATEST_SUMMARY_PATH } from '../../packages/shared/summary';
 import { generatePerformanceChart, PerformancePoint } from './chartGenerator';
 
 interface Performance {
@@ -59,11 +60,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const summary = { generated_at: timestamp, students };
     const content = Buffer.from(JSON.stringify(summary, null, 2));
-    const summaryPath = `performance_summary_${safeTimestamp}.json`;
+    const archivePath = `performance_summary_${safeTimestamp}.json`;
 
+    // Save timestamped archive
     await supabase.storage
       .from('summaries')
-      .upload(summaryPath, content, {
+      .upload(archivePath, content, {
+        upsert: true,
+        contentType: 'application/json',
+      });
+
+    // Save/update latest summary for other services
+    await supabase.storage
+      .from('summaries')
+      .upload(LATEST_SUMMARY_PATH, content, {
         upsert: true,
         contentType: 'application/json',
       });
