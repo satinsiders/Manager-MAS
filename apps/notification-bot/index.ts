@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import fetch from 'node-fetch';
 import { SLACK_WEBHOOK_URL } from '../../packages/shared/config';
 import { callWithRetry } from '../../packages/shared/retry';
 
