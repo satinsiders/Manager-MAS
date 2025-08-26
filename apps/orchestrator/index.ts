@@ -62,7 +62,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               body: body ? JSON.stringify(body) : undefined
             },
             runType,
-            `${step.label}:${student.id}`
+            `${step.label}:${student.id}`,
+            3,
+            'orchestrator_log'
           );
         }
       }
@@ -78,7 +80,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               : {})
           },
           runType,
-          step.label
+          step.label,
+          3,
+          'orchestrator_log'
         );
       }
     }
