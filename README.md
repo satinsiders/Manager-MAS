@@ -37,9 +37,9 @@ Tables `lessons`, `performances`, `assignments` and historical `curricula` are a
 
 ## API
 
-### Score Recorder
+### Performance Recorder
 
-`POST /api/score-recorder`
+`POST /api/performance-recorder`
 
 Body parameters:
 
