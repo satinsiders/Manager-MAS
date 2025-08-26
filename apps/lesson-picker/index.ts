@@ -2,9 +2,16 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from '../../packages/shared/supabase';
 import { Redis } from '@upstash/redis';
 import OpenAI from 'openai';
-import { OPENAI_API_KEY } from '../../packages/shared/config';
+import {
+  OPENAI_API_KEY,
+  UPSTASH_REDIS_REST_URL,
+  UPSTASH_REDIS_REST_TOKEN,
+} from '../../packages/shared/config';
 
-const redis = Redis.fromEnv();
+const redis = new Redis({
+  url: UPSTASH_REDIS_REST_URL,
+  token: UPSTASH_REDIS_REST_TOKEN,
+});
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

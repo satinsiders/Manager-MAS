@@ -11,6 +11,8 @@ const envSchema = z.object({
   DATA_AGGREGATOR_URL: z.string().url(),
   CURRICULUM_MODIFIER_URL: z.string().url(),
   QA_FORMATTER_URL: z.string().url(),
+  UPSTASH_REDIS_REST_URL: z.string().url(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
 });
 
 const env = envSchema.safeParse(process.env);
@@ -30,4 +32,6 @@ export const {
   DATA_AGGREGATOR_URL,
   CURRICULUM_MODIFIER_URL,
   QA_FORMATTER_URL,
+  UPSTASH_REDIS_REST_URL,
+  UPSTASH_REDIS_REST_TOKEN,
 } = env.data;
