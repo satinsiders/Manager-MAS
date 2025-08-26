@@ -27,7 +27,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('Lesson picker', { student, recentScores });
 
-    const topics = (student as any)?.preferred_topics ?? [];
+    const topics: string[] = Array.isArray((student as any)?.preferred_topics)
+      ? (student as any).preferred_topics
+      : [];
     const queryText = `Preferred topics: ${topics.join(', ')}. Recent scores: ${recentScores.join(', ')}`;
     const embeddingResponse = await openai.embeddings.create({
       model: 'text-embedding-3-small',
