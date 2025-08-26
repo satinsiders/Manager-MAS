@@ -28,7 +28,7 @@ npm test
 ## Deployment
 
 - Vercel deploys the functions under `apps/`.
-- Supabase migrations can be executed with the Supabase CLI.
+- Supabase migrations should be applied during deployment using the Supabase CLI, e.g. `supabase db push`.
 - GitHub Actions `daily-run.yml` and `weekly-run.yml` trigger orchestrator endpoints at 07:00 daily and 23:00 Friday respectively.
 
 ## Notes
