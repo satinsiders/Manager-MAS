@@ -51,6 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
     let assignmentId: string | undefined;
+    let dispatchLogId: string | undefined;
     if (lesson && avgScore < 60) {
       const { data: assignment } = await supabase
         .from('assignments')
@@ -66,15 +67,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (lesson) {
-      await supabase.from('dispatch_log').insert({
-        student_id,
-        lesson_id: lesson.id,
-        channel: 'auto',
-        status: 'pending'
-      });
+      const { data: dispatchLog } = await supabase
+        .from('dispatch_log')
+        .insert({
+          student_id,
+          lesson_id: lesson.id,
+          channel: 'auto',
+          status: 'pending'
+        })
+        .select('id')
+        .single();
+      dispatchLogId = dispatchLog?.id;
     }
 
-    res.status(200).json({ lesson_id: lesson?.id, assignment_id: assignmentId });
+    res.status(200).json({ lesson_id: lesson?.id, assignment_id: assignmentId, log_id: dispatchLogId });
   } catch (err:any) {
     console.error(err);
     res.status(500).json({ error: 'lesson selection failed' });

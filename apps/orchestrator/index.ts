@@ -37,16 +37,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
 
         if (pickerResp) {
-          await callWithRetry(
-            DISPATCHER_URL,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ student_id: student.id })
-            },
-            runType,
-            `dispatcher:${student.id}`
-          );
+          const pickerJson = (await pickerResp.json()) as { log_id?: string };
+          if (pickerJson?.log_id) {
+            await callWithRetry(
+              DISPATCHER_URL,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ log_id: pickerJson.log_id })
+              },
+              runType,
+              `dispatcher:${student.id}`
+            );
+          }
         }
       }
     } else {
