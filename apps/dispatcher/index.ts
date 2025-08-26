@@ -11,11 +11,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .single();
 
     if (log) {
-      // TODO: send lesson to platform (Twilio/SendGrid)
-      await supabase
-        .from('dispatch_log')
-        .update({ status: 'sent', sent_at: new Date().toISOString() })
-        .eq('id', log_id);
+      const { data: lesson } = await supabase
+        .from('lessons')
+        .select('*')
+        .eq('id', log.lesson_id)
+        .single();
+
+      if (lesson) {
+        // TODO: send lesson to platform (Twilio/SendGrid)
+        await supabase
+          .from('dispatch_log')
+          .update({ status: 'sent', sent_at: new Date().toISOString() })
+          .eq('id', log_id);
+      }
     }
 
     res.status(200).json({ status: 'dispatched' });

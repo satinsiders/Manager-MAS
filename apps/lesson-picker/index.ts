@@ -72,16 +72,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       assignmentId = assignment?.id;
     }
 
+    let logId: string | undefined;
     if (lesson) {
-      await supabase.from('dispatch_log').insert({
-        student_id,
-        lesson_id: lesson.id,
-        channel: 'auto',
-        status: 'pending'
-      });
+      const { data: log } = await supabase
+        .from('dispatch_log')
+        .insert({
+          student_id,
+          lesson_id: lesson.id,
+          channel: 'auto',
+          status: 'pending'
+        })
+        .select('id')
+        .single();
+      logId = log?.id;
     }
 
-    res.status(200).json({ lesson_id: lesson?.id, assignment_id: assignmentId });
+    res
+      .status(200)
+      .json({ lesson_id: lesson?.id, assignment_id: assignmentId, log_id: logId });
   } catch (err:any) {
     console.error(err);
     res.status(500).json({ error: 'lesson selection failed' });
