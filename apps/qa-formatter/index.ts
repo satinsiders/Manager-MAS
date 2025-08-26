@@ -2,9 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Ajv from 'ajv';
 import schema from '../../docs/curriculum.schema.json';
 import { supabase } from '../../packages/shared/supabase';
+import { NOTIFICATION_BOT_URL } from '../../packages/shared/config';
 import { callWithRetry } from '../../packages/shared/retry';
-
-const NOTIFICATION_BOT_URL = process.env.NOTIFICATION_BOT_URL!;
 const ajv = new Ajv({ allErrors: true });
 const validate = ajv.compile(schema);
 

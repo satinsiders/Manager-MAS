@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import fetch from 'node-fetch';
+import { SLACK_WEBHOOK_URL } from '../../packages/shared/config';
 import { callWithRetry } from '../../packages/shared/retry';
-
-const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL!;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { text } = req.body as { text: string };

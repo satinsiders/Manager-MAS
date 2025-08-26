@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import OpenAI from 'openai';
 import { supabase } from '../../packages/shared/supabase';
+import { OPENAI_API_KEY } from '../../packages/shared/config';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -26,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `propose a new lesson sequence for the student and return JSON with "lesson_ids" ` +
       `and "notes".\nPerformance Summary:\n${summaryText}\nCandidate Lessons:\n${JSON.stringify(lessons)}`;
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
     const completion = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
       messages: [{ role: 'user', content: prompt }]
