@@ -8,3 +8,5 @@ The database uses row level security (RLS) on all tables. Select access is allow
 - **curricula** – versioned history, insert only.
 
 Foreign key relations use `ON DELETE RESTRICT` to prevent accidental cascades. Triggers on the append-only tables raise exceptions if an update or delete is attempted.
+
+The `students` table stores core profile data (`id`, `name`, `timezone`, `current_curriculum_version`, `last_lesson_sent`) and user preferences. The new `preferred_topics` **text[]** column records any topics a student wants to focus on and informs the lesson picker while remaining mutable under RLS.

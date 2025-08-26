@@ -37,7 +37,7 @@ All processes are driven by an LLM-based multi-agent system with observability a
 
 | Table | Key Fields | Purpose |
 |-------|------------|---------|
-| `students` | `id, name, timezone, current_curriculum_version, last_lesson_sent` | Manage personalization status |
+| `students` | `id, name, timezone, current_curriculum_version, last_lesson_sent, preferred_topics` | Manage personalization status |
 | `lessons` | `id, topic, difficulty, asset_url, vector_embedding` | Fixed lesson catalog |
 | `performances` | `id, student_id, lesson_id, score, confidence_rating` | Source data for learning results |
 | `curricula` | `version, student_id, curriculum json, qa_user, approved_at` | Version-controlled learning plan |
