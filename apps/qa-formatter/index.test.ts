@@ -11,6 +11,8 @@ process.env.DISPATCHER_URL = 'http://example.com';
 process.env.DATA_AGGREGATOR_URL = 'http://example.com';
 process.env.CURRICULUM_MODIFIER_URL = 'http://example.com';
 process.env.QA_FORMATTER_URL = 'http://example.com';
+process.env.UPSTASH_REDIS_REST_URL = 'http://example.com';
+process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
 
 (async () => {
   // Stub network and database interactions used by notify

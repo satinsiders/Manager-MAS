@@ -10,13 +10,13 @@ import {
 import { callWithRetry } from '../../packages/shared/retry';
 import { notify } from '../../packages/shared/notify';
 
-type StepDescriptor<T> = {
+type StepDescriptor<T, C = any> = {
   url: string;
   label: string;
-  buildBody: (arg: T) => any;
+  buildBody: (arg: T, context?: C) => any;
 };
 
-const DAILY_STEPS: StepDescriptor<{ id: number }>[] = [
+const DAILY_STEPS: StepDescriptor<{ id: number }, any>[] = [
   {
     url: LESSON_PICKER_URL,
     label: 'lesson-picker',
@@ -25,7 +25,7 @@ const DAILY_STEPS: StepDescriptor<{ id: number }>[] = [
   {
     url: DISPATCHER_URL,
     label: 'dispatcher',
-    buildBody: (student) => ({ student_id: student.id })
+    buildBody: (_student, ctx) => (ctx?.log_id ? { log_id: ctx.log_id } : undefined)
   }
 ];
 
@@ -51,21 +51,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       for (const student of students ?? []) {
         let lastResp: any = true;
+        let context: any = undefined;
         for (const step of DAILY_STEPS) {
           if (!lastResp) break;
-          const body = step.buildBody(student);
+          const body = step.buildBody(student, context);
+          if (!body) {
+            lastResp = null;
+            break;
+          }
           lastResp = await callWithRetry(
             step.url,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: body ? JSON.stringify(body) : undefined
+              body: JSON.stringify(body)
             },
             runType,
             `${step.label}:${student.id}`,
             3,
             'orchestrator_log'
           );
+          if (lastResp) {
+            try {
+              context = await lastResp.json();
+            } catch {
+              context = undefined;
+            }
+          }
         }
       }
     } else {
