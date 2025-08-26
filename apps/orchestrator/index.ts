@@ -10,6 +10,31 @@ import {
 import { callWithRetry } from '../../packages/shared/retry';
 import { notify } from '../../packages/shared/notify';
 
+type StepDescriptor<T> = {
+  url: string;
+  label: string;
+  buildBody: (arg: T) => any;
+};
+
+const DAILY_STEPS: StepDescriptor<{ id: number }>[] = [
+  {
+    url: LESSON_PICKER_URL,
+    label: 'lesson-picker',
+    buildBody: (student) => ({ student_id: student.id })
+  },
+  {
+    url: DISPATCHER_URL,
+    label: 'dispatcher',
+    buildBody: (student) => ({ student_id: student.id })
+  }
+];
+
+const WEEKLY_STEPS: StepDescriptor<void>[] = [
+  { url: DATA_AGGREGATOR_URL, label: 'data-aggregator', buildBody: () => undefined },
+  { url: CURRICULUM_MODIFIER_URL, label: 'curriculum-modifier', buildBody: () => undefined },
+  { url: QA_FORMATTER_URL, label: 'qa-formatter', buildBody: () => undefined }
+];
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const runType = req.query.run_type as string;
   if (runType !== 'daily' && runType !== 'weekly') {
@@ -25,49 +50,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq('active', true);
 
       for (const student of students ?? []) {
-        const pickerResp = await callWithRetry(
-          LESSON_PICKER_URL,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ student_id: student.id })
-          },
-          runType,
-          `lesson-picker:${student.id}`
-        );
-
-        if (pickerResp) {
-          await callWithRetry(
-            DISPATCHER_URL,
+        let lastResp: any = true;
+        for (const step of DAILY_STEPS) {
+          if (!lastResp) break;
+          const body = step.buildBody(student);
+          lastResp = await callWithRetry(
+            step.url,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ student_id: student.id })
+              body: body ? JSON.stringify(body) : undefined
             },
             runType,
-            `dispatcher:${student.id}`
+            `${step.label}:${student.id}`
           );
         }
       }
     } else {
-      await callWithRetry(
-        DATA_AGGREGATOR_URL,
-        { method: 'POST' },
-        runType,
-        'data-aggregator'
-      );
-      await callWithRetry(
-        CURRICULUM_MODIFIER_URL,
-        { method: 'POST' },
-        runType,
-        'curriculum-modifier'
-      );
-      await callWithRetry(
-        QA_FORMATTER_URL,
-        { method: 'POST' },
-        runType,
-        'qa-formatter'
-      );
+      for (const step of WEEKLY_STEPS) {
+        const body = step.buildBody(undefined);
+        await callWithRetry(
+          step.url,
+          {
+            method: 'POST',
+            ...(body
+              ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+              : {})
+          },
+          runType,
+          step.label
+        );
+      }
     }
     await notify(`Orchestrator ${runType} run succeeded`, 'orchestrator');
     res.status(200).json({ status: 'ok' });
