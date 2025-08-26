@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     confidence_rating?: number;
   };
   try {
-    const { supabase } = await import('../../packages/shared/supabase.js');
+    const { supabase } = await import('../../packages/shared/supabase');
     const { data } = await supabase
       .from('performances')
       .insert({ student_id, lesson_id, score, confidence_rating })
