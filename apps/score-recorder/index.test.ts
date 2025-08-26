@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { updateLastScores, LAST_SCORES_TTL } from './index.js';
+import { updateLastScores, LAST_SCORES_TTL } from './index';
 
 class MockRedis {
   public lastExpire: [string, number] | null = null;
