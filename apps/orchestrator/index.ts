@@ -4,7 +4,7 @@ import {
   LESSON_PICKER_URL,
   DISPATCHER_URL,
   DATA_AGGREGATOR_URL,
-  CURRICULUM_MODIFIER_URL,
+  CURRICULUM_EDITOR_URL,
   QA_FORMATTER_URL
 } from '../../packages/shared/config';
 import { callWithRetry } from '../../packages/shared/retry';
@@ -31,7 +31,7 @@ const DAILY_STEPS: StepDescriptor<{ id: number }, any>[] = [
 
 const WEEKLY_STEPS: StepDescriptor<void>[] = [
   { url: DATA_AGGREGATOR_URL, label: 'data-aggregator', buildBody: () => undefined },
-  { url: CURRICULUM_MODIFIER_URL, label: 'curriculum-modifier', buildBody: () => undefined },
+  { url: CURRICULUM_EDITOR_URL, label: 'curriculum-editor', buildBody: () => undefined },
   { url: QA_FORMATTER_URL, label: 'qa-formatter', buildBody: () => undefined }
 ];
 
