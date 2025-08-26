@@ -2,15 +2,20 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import OpenAI from 'openai';
 import { supabase } from '../../packages/shared/supabase';
 import { OPENAI_API_KEY } from '../../packages/shared/config';
+import { LATEST_SUMMARY_PATH } from '../../packages/shared/summary';
+
+export async function fetchLatestSummary() {
+  const { data: file } = await supabase.storage
+    .from('summaries')
+    .download(LATEST_SUMMARY_PATH);
+  const summaryText = file ? await file.text() : '{}';
+  return { summary: JSON.parse(summaryText), summaryText };
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     // 1. Load performance summary from Supabase storage
-    const { data: file } = await supabase.storage
-      .from('summaries')
-      .download('performance_summary.json');
-    const summaryText = file ? await file.text() : '{}';
-    const summary = JSON.parse(summaryText);
+    const { summary, summaryText } = await fetchLatestSummary();
 
     // derive student id from summary or performances
     const student_id =
