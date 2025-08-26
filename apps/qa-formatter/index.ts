@@ -1,10 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import fetch from 'node-fetch';
 import Ajv from 'ajv';
 import schema from '../../docs/curriculum.schema.json';
 import { supabase } from '../../packages/shared/supabase';
-
-const NOTIFICATION_BOT_URL = process.env.NOTIFICATION_BOT_URL!;
+import { notify } from '../../packages/shared/notify';
 const ajv = new Ajv({ allErrors: true });
 const validate = ajv.compile(schema);
 
@@ -21,14 +19,11 @@ function enforceStyle(curriculum: any) {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { curriculum, qa_user } = req.body as { curriculum: any; qa_user: string };
+  const studentId: string = curriculum.student_id;
   try {
     if (!validate(curriculum)) {
       const message = `Curriculum validation failed: ${ajv.errorsText(validate.errors)}`;
-      await fetch(NOTIFICATION_BOT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: message })
-      });
+      await notify({ agent: 'qa-formatter', studentId, error: message });
       res.status(400).json({ error: 'invalid curriculum' });
       return;
     }
@@ -48,11 +43,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await supabase
       .from('students')
       .update({ current_curriculum_version: curriculum.version })
-      .eq('id', curriculum.student_id);
+      .eq('id', studentId);
 
+    await notify({ agent: 'qa-formatter', studentId });
     res.status(200).json({ updated: true });
   } catch (err:any) {
     console.error(err);
+    await notify({ agent: 'qa-formatter', studentId, error: err.message });
     res.status(500).json({ error: 'qa failed' });
   }
 }

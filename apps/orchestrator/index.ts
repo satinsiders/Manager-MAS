@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import fetch from 'node-fetch';
 import { supabase } from '../../packages/shared/supabase';
+import { notify } from '../../packages/shared/notify';
 
 const LESSON_PICKER_URL = process.env.LESSON_PICKER_URL!;
 const DISPATCHER_URL = process.env.DISPATCHER_URL!;
@@ -25,6 +26,8 @@ async function callWithRetry(
         success: true,
         run_at: new Date().toISOString()
       });
+      const [agent, studentId] = step.split(':');
+      await notify({ agent, studentId });
       return true;
     } catch (err: any) {
       if (attempt === retries) {
@@ -35,6 +38,8 @@ async function callWithRetry(
           message: err.message,
           run_at: new Date().toISOString()
         });
+        const [agent, studentId] = step.split(':');
+        await notify({ agent, studentId, error: err.message });
         return false;
       }
     }
@@ -81,29 +86,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           );
         }
       }
+      await notify({ agent: 'orchestrator' });
     } else {
-      await callWithRetry(
+      const summary: string[] = [];
+      const aggOk = await callWithRetry(
         DATA_AGGREGATOR_URL,
         { method: 'POST' },
         runType,
         'data-aggregator'
       );
-      await callWithRetry(
+      summary.push(`data-aggregator:${aggOk ? 'success' : 'error'}`);
+      const curOk = await callWithRetry(
         CURRICULUM_MODIFIER_URL,
         { method: 'POST' },
         runType,
         'curriculum-modifier'
       );
-      await callWithRetry(
+      summary.push(`curriculum-modifier:${curOk ? 'success' : 'error'}`);
+      const qaOk = await callWithRetry(
         QA_FORMATTER_URL,
         { method: 'POST' },
         runType,
         'qa-formatter'
       );
+      summary.push(`qa-formatter:${qaOk ? 'success' : 'error'}`);
+      await notify({ agent: 'orchestrator', summary });
     }
     res.status(200).json({ status: 'ok' });
   } catch (err: any) {
     console.error(err);
+    await notify({ agent: 'orchestrator', error: err.message });
     res.status(500).json({ error: 'orchestration failed' });
   }
 }
