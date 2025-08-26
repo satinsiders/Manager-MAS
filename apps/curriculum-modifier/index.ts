@@ -1,7 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from '../../packages/shared/supabase';
+import { notify } from '../../packages/shared/notify';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  let studentId = 'unknown';
   try {
     const { data: file } = await supabase.storage
       .from('summaries')
@@ -13,6 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // TODO: generate new curriculum
     const newVersion = Date.now();
     const { student_id = 'demo' } = summary;
+    studentId = student_id;
     await supabase.from('curricula').insert({
       version: newVersion,
       student_id,
@@ -20,9 +23,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       notes: 'auto-generated'
     });
 
+    await notify({
+      agent: 'curriculum-modifier',
+      studentId,
+      message: `curriculum version ${newVersion} created`
+    });
     res.status(200).json({ version: newVersion });
   } catch (err:any) {
     console.error(err);
+    await notify({
+      agent: 'curriculum-modifier',
+      studentId,
+      error: err.message
+    });
     res.status(500).json({ error: 'curriculum update failed' });
   }
 }

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import fetch from 'node-fetch';
 import { supabase } from '../../packages/shared/supabase';
+import { notify } from '../../packages/shared/notify';
 
 const LESSON_PICKER_URL = process.env.LESSON_PICKER_URL!;
 const DISPATCHER_URL = process.env.DISPATCHER_URL!;
@@ -15,6 +16,7 @@ async function callWithRetry(
   step: string,
   retries = 3
 ): Promise<boolean> {
+  const [action, studentId] = step.split(':');
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const resp = await fetch(url, options);
@@ -25,6 +27,11 @@ async function callWithRetry(
         success: true,
         run_at: new Date().toISOString()
       });
+      await notify({
+        agent: 'orchestrator',
+        studentId,
+        message: `${action} succeeded`
+      });
       return true;
     } catch (err: any) {
       if (attempt === retries) {
@@ -34,6 +41,11 @@ async function callWithRetry(
           success: false,
           message: err.message,
           run_at: new Date().toISOString()
+        });
+        await notify({
+          agent: 'orchestrator',
+          studentId,
+          error: `${action} failed: ${err.message}`
         });
         return false;
       }
@@ -101,9 +113,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'qa-formatter'
       );
     }
+    await notify({ agent: 'orchestrator', message: `${runType} run complete` });
     res.status(200).json({ status: 'ok' });
   } catch (err: any) {
     console.error(err);
+    await notify({ agent: 'orchestrator', error: err.message });
     res.status(500).json({ error: 'orchestration failed' });
   }
 }
