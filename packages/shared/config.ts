@@ -1,0 +1,33 @@
+import { z } from 'zod';
+
+const envSchema = z.object({
+  SLACK_WEBHOOK_URL: z.string().url(),
+  OPENAI_API_KEY: z.string().min(1),
+  SUPABASE_URL: z.string().url(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  NOTIFICATION_BOT_URL: z.string().url(),
+  LESSON_PICKER_URL: z.string().url(),
+  DISPATCHER_URL: z.string().url(),
+  DATA_AGGREGATOR_URL: z.string().url(),
+  CURRICULUM_MODIFIER_URL: z.string().url(),
+  QA_FORMATTER_URL: z.string().url(),
+});
+
+const env = envSchema.safeParse(process.env);
+if (!env.success) {
+  console.error('Invalid or missing environment variables:', env.error.flatten().fieldErrors);
+  throw new Error('Invalid environment variables');
+}
+
+export const {
+  SLACK_WEBHOOK_URL,
+  OPENAI_API_KEY,
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
+  NOTIFICATION_BOT_URL,
+  LESSON_PICKER_URL,
+  DISPATCHER_URL,
+  DATA_AGGREGATOR_URL,
+  CURRICULUM_MODIFIER_URL,
+  QA_FORMATTER_URL,
+} = env.data;

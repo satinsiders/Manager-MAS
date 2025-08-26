@@ -1,12 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import fetch from 'node-fetch';
 import { supabase } from '../../packages/shared/supabase';
-
-const LESSON_PICKER_URL = process.env.LESSON_PICKER_URL!;
-const DISPATCHER_URL = process.env.DISPATCHER_URL!;
-const DATA_AGGREGATOR_URL = process.env.DATA_AGGREGATOR_URL!;
-const CURRICULUM_MODIFIER_URL = process.env.CURRICULUM_MODIFIER_URL!;
-const QA_FORMATTER_URL = process.env.QA_FORMATTER_URL!;
+import {
+  LESSON_PICKER_URL,
+  DISPATCHER_URL,
+  DATA_AGGREGATOR_URL,
+  CURRICULUM_MODIFIER_URL,
+  QA_FORMATTER_URL
+} from '../../packages/shared/config';
 
 async function callWithRetry(
   url: string,

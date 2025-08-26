@@ -1,8 +1,9 @@
 import OpenAI from 'openai';
+import { OPENAI_API_KEY } from '../../packages/shared/config';
 
 // `agents` is a new beta feature and may not be typed yet in the SDK, so we
 // cast the client to `any` when calling it.
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const client = new OpenAI({ apiKey: OPENAI_API_KEY });
 const betaClient = client as any;
 
 interface AgentSpec {

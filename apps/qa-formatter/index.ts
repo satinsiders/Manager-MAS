@@ -3,8 +3,7 @@ import fetch from 'node-fetch';
 import Ajv from 'ajv';
 import schema from '../../docs/curriculum.schema.json';
 import { supabase } from '../../packages/shared/supabase';
-
-const NOTIFICATION_BOT_URL = process.env.NOTIFICATION_BOT_URL!;
+import { NOTIFICATION_BOT_URL } from '../../packages/shared/config';
 const ajv = new Ajv({ allErrors: true });
 const validate = ajv.compile(schema);
 

@@ -2,9 +2,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from '../../packages/shared/supabase';
 import { Redis } from '@upstash/redis';
 import OpenAI from 'openai';
+import { OPENAI_API_KEY } from '../../packages/shared/config';
 
 const redis = Redis.fromEnv();
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { student_id } = req.body as { student_id: string };
