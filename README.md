@@ -17,7 +17,7 @@ SuperfastSAT Multi-Agent System scaffold. This project uses the OpenAI Responses
 npm install
 ```
 
-2. Copy `.env.example` to `.env` and fill in credentials for Supabase, Upstash Redis (`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`), OpenAI and Slack.
+2. Copy `.env.example` to `.env` and fill in credentials for Supabase, Upstash Redis (`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`), OpenAI, Slack, and set `CURRICULUM_EDITOR_URL`.
 
 3. Run type checks:
 
