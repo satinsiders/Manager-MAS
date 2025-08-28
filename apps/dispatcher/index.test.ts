@@ -9,10 +9,11 @@ process.env.NOTIFICATION_BOT_URL = 'http://example.com';
 process.env.LESSON_PICKER_URL = 'http://example.com';
 process.env.DISPATCHER_URL = 'http://example.com';
 process.env.DATA_AGGREGATOR_URL = 'http://example.com';
-process.env.CURRICULUM_MODIFIER_URL = 'http://example.com';
+process.env.CURRICULUM_EDITOR_URL = 'http://example.com';
 process.env.QA_FORMATTER_URL = 'http://example.com';
 process.env.UPSTASH_REDIS_REST_URL = 'http://example.com';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
+process.env.SUPERFASTSAT_API_URL = 'http://example.com';
 
 (async () => {
   const { default: handler } = await import('./index');
@@ -41,14 +42,34 @@ process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
     return {} as any;
   };
 
+  let fetchCalled = false;
+  (globalThis as any).fetch = async (_url: string, _opts: any) => {
+    fetchCalled = true;
+    return { ok: true } as any;
+  };
+
   const req = { body: { log_id: 'log1' } } as any;
   const res: any = { status() { return { json() {} }; } };
 
   await handler(req, res);
 
+  assert.equal(fetchCalled, true);
   assert.equal(updated.id, 'log1');
   assert.equal(updated.status, 'sent');
   assert.ok(updated.sent_at);
+
+  // failure path
+  updated = null;
+  fetchCalled = false;
+  (globalThis as any).fetch = async () => {
+    fetchCalled = true;
+    return { ok: false } as any;
+  };
+
+  await handler(req, res);
+  assert.equal(fetchCalled, true);
+  assert.equal(updated.status, 'failed');
+
   console.log('Dispatcher used log_id');
 })();
 

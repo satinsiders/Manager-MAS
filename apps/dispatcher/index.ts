@@ -18,17 +18,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .single();
 
       if (lesson) {
-        // TODO: send lesson to platform (Twilio/SendGrid)
-        await supabase
-          .from('dispatch_log')
-          .update({ status: 'sent', sent_at: new Date().toISOString() })
-          .eq('id', log_id);
+        const response = await fetch(
+          `${process.env.SUPERFASTSAT_API_URL}/lessons`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lesson })
+          }
+        );
+
+        if (response.ok) {
+          await supabase
+            .from('dispatch_log')
+            .update({ status: 'sent', sent_at: new Date().toISOString() })
+            .eq('id', log_id);
+          res.status(200).json({ status: 'dispatched' });
+          return;
+        } else {
+          await supabase
+            .from('dispatch_log')
+            .update({ status: 'failed' })
+            .eq('id', log_id);
+          throw new Error(`SuperfastSAT API responded ${response.status}`);
+        }
       }
     }
 
-    res.status(200).json({ status: 'dispatched' });
+    await supabase
+      .from('dispatch_log')
+      .update({ status: 'failed' })
+      .eq('id', log_id);
+    throw new Error('dispatch data missing');
   } catch (err:any) {
     console.error(err);
+    await supabase
+      .from('dispatch_log')
+      .update({ status: 'failed' })
+      .eq('id', log_id);
     res.status(500).json({ error: 'dispatch failed' });
   }
 }
