@@ -40,7 +40,7 @@ process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
   process.env.DISPATCHER_URL = `${base}/dispatcher`;
   process.env.NOTIFICATION_BOT_URL = `${base}/notify`;
   process.env.DATA_AGGREGATOR_URL = `${base}/agg`;
-  process.env.CURRICULUM_MODIFIER_URL = `${base}/mod`;
+  process.env.CURRICULUM_EDITOR_URL = `${base}/mod`;
   process.env.QA_FORMATTER_URL = `${base}/qa`;
 
   const { default: handler } = await import('./index');

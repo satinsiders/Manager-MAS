@@ -13,4 +13,4 @@ jobs:
         env:
           WEEKLY_URL: ${{ secrets.WEEKLY_ORCH_URL }}
         run: |
-          curl -X POST "$WEEKLY_URL" -H "Authorization: Bearer ${{ secrets.ORCH_TOKEN }}"
+          curl -X POST "$WEEKLY_URL?run_type=weekly" -H "Authorization: Bearer ${{ secrets.ORCH_TOKEN }}"
