@@ -13,4 +13,4 @@ jobs:
         env:
           ORCH_URL: ${{ secrets.DAILY_ORCH_URL }}
         run: |
-          curl -X POST "$ORCH_URL" -H "Authorization: Bearer ${{ secrets.ORCH_TOKEN }}"
+          curl -X POST "$ORCH_URL?run_type=daily" -H "Authorization: Bearer ${{ secrets.ORCH_TOKEN }}"
