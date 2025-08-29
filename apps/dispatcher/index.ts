@@ -32,6 +32,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .from('dispatch_log')
             .update({ status: 'sent', sent_at: new Date().toISOString() })
             .eq('id', log_id);
+          await supabase
+            .from('students')
+            .update({
+              last_lesson_sent: new Date().toISOString(),
+              last_lesson_id: log.lesson_id
+            })
+            .eq('id', log.student_id);
           res.status(200).json({ status: 'dispatched' });
           return;
         } else {

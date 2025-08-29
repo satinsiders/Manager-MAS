@@ -19,16 +19,17 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
   const { default: handler } = await import('./index');
   const { supabase } = await import('../../packages/shared/supabase');
 
-  let updated: any = null;
+  let dispatchUpdated: any = null;
+  let studentUpdated: any = null;
   (supabase as any).from = (table: string) => {
     if (table === 'dispatch_log') {
       return {
         select: () => ({
-          eq: () => ({ single: async () => ({ data: { id: 'log1', lesson_id: 'lesson1' } }) })
+          eq: () => ({ single: async () => ({ data: { id: 'log1', lesson_id: 'lesson1', student_id: 'student1' } }) })
         }),
         update: (fields: any) => ({
           eq: (_col: string, id: string) => {
-            updated = { id, ...fields };
+            dispatchUpdated = { id, ...fields };
             return Promise.resolve({});
           }
         })
@@ -37,6 +38,16 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
     if (table === 'lessons') {
       return {
         select: () => ({ eq: () => ({ single: async () => ({ data: { id: 'lesson1' } }) }) })
+      };
+    }
+    if (table === 'students') {
+      return {
+        update: (fields: any) => ({
+          eq: (_col: string, id: string) => {
+            studentUpdated = { id, ...fields };
+            return Promise.resolve({});
+          }
+        })
       };
     }
     return {} as any;
@@ -54,12 +65,16 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
   await handler(req, res);
 
   assert.equal(fetchCalled, true);
-  assert.equal(updated.id, 'log1');
-  assert.equal(updated.status, 'sent');
-  assert.ok(updated.sent_at);
+  assert.equal(dispatchUpdated.id, 'log1');
+  assert.equal(dispatchUpdated.status, 'sent');
+  assert.ok(dispatchUpdated.sent_at);
+  assert.equal(studentUpdated.id, 'student1');
+  assert.ok(studentUpdated.last_lesson_sent);
+  assert.equal(studentUpdated.last_lesson_id, 'lesson1');
 
   // failure path
-  updated = null;
+  dispatchUpdated = null;
+  studentUpdated = null;
   fetchCalled = false;
   (globalThis as any).fetch = async () => {
     fetchCalled = true;
@@ -68,7 +83,7 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
 
   await handler(req, res);
   assert.equal(fetchCalled, true);
-  assert.equal(updated.status, 'failed');
+  assert.equal(dispatchUpdated.status, 'failed');
 
   console.log('Dispatcher used log_id');
 })();
