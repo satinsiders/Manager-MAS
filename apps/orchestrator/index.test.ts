@@ -8,6 +8,7 @@ process.env.SUPABASE_URL = 'http://localhost';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'key';
 process.env.UPSTASH_REDIS_REST_URL = 'http://localhost';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
+process.env.ORCHESTRATOR_SECRET = 'secret';
 
 (async () => {
   // start mock server
@@ -57,7 +58,24 @@ process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
     };
   };
 
-  const req = { query: { run_type: 'daily' } } as any;
+  // unauthorized request
+  const reqUnauthorized = { query: { run_type: 'daily' }, headers: {} } as any;
+  let unauthorizedStatus = 0;
+  const resUnauthorized: any = {
+    status(code: number) {
+      unauthorizedStatus = code;
+      return { json() {} };
+    }
+  };
+  await handler(reqUnauthorized, resUnauthorized);
+  assert.equal(unauthorizedStatus, 401);
+
+  // authorized request
+  dispatcherBody = null;
+  const req = {
+    query: { run_type: 'daily' },
+    headers: { authorization: `Bearer ${process.env.ORCHESTRATOR_SECRET}` }
+  } as any;
   const res: any = {
     status(_code: number) {
       return { json() {} };
@@ -68,6 +86,6 @@ process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
   server.close();
 
   assert.equal(dispatcherBody.log_id, 'log1');
-  console.log('Orchestrator passed log_id');
+  console.log('Orchestrator authorization tests passed');
 })();
 
