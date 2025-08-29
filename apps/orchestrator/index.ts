@@ -36,6 +36,13 @@ const WEEKLY_STEPS: StepDescriptor<void>[] = [
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const authHeader = req.headers['authorization'];
+  const expected = `Bearer ${process.env.ORCHESTRATOR_SECRET}`;
+  if (!authHeader || authHeader !== expected) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+
   const runType = req.query.run_type as string;
   if (runType !== 'daily' && runType !== 'weekly') {
     res.status(400).json({ error: 'invalid run_type' });

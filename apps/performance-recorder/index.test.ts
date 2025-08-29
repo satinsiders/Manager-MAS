@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 // Set env variables before importing modules
+
 process.env.SLACK_WEBHOOK_URL = 'http://example.com';
 process.env.OPENAI_API_KEY = 'test';
 process.env.SUPABASE_URL = 'http://example.com';
