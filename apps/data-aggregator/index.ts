@@ -13,6 +13,53 @@ interface Performance {
 
 interface Dispatch {
   student_id: string;
+  status?: string;
+}
+
+export async function aggregateStudentStats(
+  performances: Performance[],
+  dispatches: Dispatch[],
+  safeTimestamp: string,
+  chartFn = generatePerformanceChart
+) {
+  const studentMap: Record<string, { scores: number[]; confidences: number[]; points: PerformancePoint[] }> = {};
+  const assignments: Record<string, number> = {};
+
+  performances.forEach((p) => {
+    if (!studentMap[p.student_id]) studentMap[p.student_id] = { scores: [], confidences: [], points: [] };
+    if (p.score !== null && p.score !== undefined) {
+      studentMap[p.student_id].scores.push(Number(p.score));
+      studentMap[p.student_id].points.push({ timestamp: p.timestamp, score: Number(p.score) });
+    }
+    if (p.confidence_rating !== null && p.confidence_rating !== undefined) {
+      studentMap[p.student_id].confidences.push(Number(p.confidence_rating));
+    }
+  });
+
+  dispatches
+    .filter((d) => !d.status || d.status === 'sent')
+    .forEach((d) => {
+      if (!studentMap[d.student_id]) studentMap[d.student_id] = { scores: [], confidences: [], points: [] };
+      assignments[d.student_id] = (assignments[d.student_id] || 0) + 1;
+    });
+
+  const students = [] as {
+    student_id: string;
+    average_score: number;
+    average_confidence: number;
+    completion_rate: number;
+    chart_url: string;
+  }[];
+  for (const [studentId, info] of Object.entries(studentMap)) {
+    const assigned = assignments[studentId] ?? 0;
+    const average_score = info.scores.length ? info.scores.reduce((a, b) => a + b, 0) / info.scores.length : 0;
+    const average_confidence = info.confidences.length ? info.confidences.reduce((a, b) => a + b, 0) / info.confidences.length : 0;
+    const completion_rate = assigned ? info.scores.length / assigned : 0;
+    const chart_url = await chartFn(studentId, info.points, safeTimestamp);
+    students.push({ student_id: studentId, average_score, average_confidence, completion_rate, chart_url });
+  }
+
+  return students;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -29,34 +76,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { data: dispatches } = await supabase
       .from('dispatch_log')
       .select('student_id')
+      .eq('status', 'sent')
       .gte('sent_at', since);
 
-    const studentMap: Record<string, { scores: number[]; confidences: number[]; points: PerformancePoint[]; assigned: number }> = {};
-
-    (performances ?? []).forEach((p) => {
-      if (!studentMap[p.student_id]) studentMap[p.student_id] = { scores: [], confidences: [], points: [], assigned: 0 };
-      if (p.score !== null && p.score !== undefined) {
-        studentMap[p.student_id].scores.push(Number(p.score));
-        studentMap[p.student_id].points.push({ timestamp: p.timestamp, score: Number(p.score) });
-      }
-      if (p.confidence_rating !== null && p.confidence_rating !== undefined) {
-        studentMap[p.student_id].confidences.push(Number(p.confidence_rating));
-      }
-    });
-
-    (dispatches ?? []).forEach((d) => {
-      if (!studentMap[d.student_id]) studentMap[d.student_id] = { scores: [], confidences: [], points: [], assigned: 0 };
-      studentMap[d.student_id].assigned += 1;
-    });
-
-    const students = [] as { student_id: string; average_score: number; average_confidence: number; completion_rate: number; chart_url: string }[];
-    for (const [studentId, info] of Object.entries(studentMap)) {
-      const average_score = info.scores.length ? info.scores.reduce((a, b) => a + b, 0) / info.scores.length : 0;
-      const average_confidence = info.confidences.length ? info.confidences.reduce((a, b) => a + b, 0) / info.confidences.length : 0;
-      const completion_rate = info.assigned ? info.scores.length / info.assigned : 0;
-      const chart_url = await generatePerformanceChart(studentId, info.points, safeTimestamp);
-      students.push({ student_id: studentId, average_score, average_confidence, completion_rate, chart_url });
-    }
+    const students = await aggregateStudentStats(performances ?? [], dispatches ?? [], safeTimestamp);
 
     const summary = { generated_at: timestamp, students };
     const content = Buffer.from(JSON.stringify(summary, null, 2));
