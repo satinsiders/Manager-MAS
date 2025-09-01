@@ -57,16 +57,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq('active', true);
 
       for (const student of students ?? []) {
-        let lastResp: any = true;
         let context: any = undefined;
         for (const step of DAILY_STEPS) {
-          if (!lastResp) break;
           const body = step.buildBody(student, context);
-          if (!body) {
-            lastResp = null;
-            break;
-          }
-          lastResp = await callWithRetry(
+          if (!body) break;
+          const resp = await callWithRetry(
             step.url,
             {
               method: 'POST',
@@ -78,12 +73,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             3,
             'orchestrator_log'
           );
-          if (lastResp) {
-            try {
-              context = await lastResp.json();
-            } catch {
-              context = undefined;
-            }
+          try {
+            context = await resp.json();
+          } catch {
+            context = undefined;
           }
         }
       }

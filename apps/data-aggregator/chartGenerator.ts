@@ -43,7 +43,6 @@ export async function generatePerformanceChart(
     'data-aggregator',
     'chart-generation'
   );
-  if (!response) throw new Error('chart fetch failed');
   const arrayBuffer = await response.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
