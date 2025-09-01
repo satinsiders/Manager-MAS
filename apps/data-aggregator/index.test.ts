@@ -24,7 +24,6 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
   const dispatches = [
     { student_id: 's1', status: 'sent' },
     { student_id: 's1', status: 'failed' },
-    { student_id: 's2', status: 'sent' },
     { student_id: 's2', status: 'failed' },
   ];
 
@@ -38,6 +37,6 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
   const s1 = students.find((s) => s.student_id === 's1');
   const s2 = students.find((s) => s.student_id === 's2');
   assert.equal(s1?.completion_rate, 1);
-  assert.equal(s2?.completion_rate, 0);
+  assert.equal(s2, undefined);
   console.log('Accurate completion rates with mixed dispatch statuses');
 })();

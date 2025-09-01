@@ -13,7 +13,7 @@ interface Performance {
 
 interface Dispatch {
   student_id: string;
-  status?: string;
+  status: string;
 }
 
 export async function aggregateStudentStats(
@@ -37,7 +37,7 @@ export async function aggregateStudentStats(
   });
 
   dispatches
-    .filter((d) => !d.status || d.status === 'sent')
+    .filter((d) => d.status === 'sent')
     .forEach((d) => {
       if (!studentMap[d.student_id]) studentMap[d.student_id] = { scores: [], confidences: [], points: [] };
       assignments[d.student_id] = (assignments[d.student_id] || 0) + 1;
@@ -80,8 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { data: dispatches } = await supabase
       .from('dispatch_log')
-      .select('student_id')
-      .eq('status', 'sent')
+      .select('student_id, status')
       .gte('sent_at', since);
 
     const students = await aggregateStudentStats(performances ?? [], dispatches ?? [], safeTimestamp);
