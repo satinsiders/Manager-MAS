@@ -46,8 +46,21 @@ process.env.ORCHESTRATOR_SECRET = 'secret';
   process.env.CURRICULUM_EDITOR_URL = `${base}/mod`;
   process.env.QA_FORMATTER_URL = `${base}/qa`;
 
-  const { default: handler } = await import('./index');
-  const { supabase } = await import('../../packages/shared/supabase');
+    class MockRedis {
+      store: Record<string, any> = {};
+      async set(key: string, value: string) {
+        this.store[key] = value;
+      }
+      async get(key: string) {
+        return this.store[key] ?? null;
+      }
+    }
+
+    const memory = await import('../../packages/shared/memory');
+    memory.setMemoryClient(new MockRedis());
+
+    const { default: handler } = await import('./index');
+    const { supabase } = await import('../../packages/shared/supabase');
 
   (supabase as any).from = (table: string) => {
     if (table === 'students') {

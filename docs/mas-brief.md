@@ -58,6 +58,11 @@ Immutable rules: `lessons`, `performances`, `assignments`, and past `curricula` 
 
 Accuracy priority: External evidence > Long-term > Short-term > Working.
 
+`packages/shared/memory.ts` provides `writeDraft` and `readDraft` helpers for the `draft:*`
+namespace. These keys automatically expire after a configurable TTL (default 1 hour via
+`DRAFT_TTL`), making them suitable for cross-step context that should disappear after the
+run completes.
+
 ## 5. Data Access Matrix
 
 | Agent | READS | WRITES |
