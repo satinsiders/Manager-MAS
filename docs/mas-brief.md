@@ -70,7 +70,7 @@ run completes.
 | Lesson Picker | `students`, recent `performances`, `curricula`, `lessons` | `dispatch_log` |
 | Dispatcher | `students`, `lessons`, `dispatch_log` | `dispatch_log(status)` |
 | Performance Recorder | – | `performances` |
-| Data Aggregator | `performances`, charts 📊 | Supabase Storage `performance_summary.json` |
+| Data Aggregator | `performances`, `dispatch_log`, charts 📊 | Supabase Storage `performance_summary.json` |
 | Curriculum Editor | `performance_summary`, `lessons` | `curricula_drafts` |
 | QA & Formatter | `curricula_drafts` | `curricula`, `students.current_curriculum_version` |
 | Notification Bot | Event stream | Slack |
