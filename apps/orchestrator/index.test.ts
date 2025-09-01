@@ -21,7 +21,7 @@ process.env.ORCHESTRATOR_SECRET = 'secret';
       if (req.url === '/lesson-picker') {
         lessonPickerBody = body ? JSON.parse(body) : null;
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ minutes: 5 }));
+        res.end(JSON.stringify({ minutes: 5, next_lesson_id: 'l42' }));
       } else if (req.url === '/dispatcher') {
         dispatcherBody = body ? JSON.parse(body) : null;
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -100,6 +100,7 @@ process.env.ORCHESTRATOR_SECRET = 'secret';
 
   assert.equal(dispatcherBody.student_id, 1);
   assert.equal(dispatcherBody.minutes, 5);
+  assert.equal(dispatcherBody.next_lesson_id, 'l42');
   assert.equal(lessonPickerBody.curriculum_version, 2);
   console.log('Orchestrator authorization tests passed');
 })();

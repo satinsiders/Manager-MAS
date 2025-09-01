@@ -36,7 +36,13 @@ const DAILY_STEPS: StepDescriptor<
       ctx?.units
         ? { student_id: student.id, units: ctx.units }
         : ctx?.minutes
-        ? { student_id: student.id, minutes: ctx.minutes }
+        ? {
+            student_id: student.id,
+            minutes: ctx.minutes,
+            ...(ctx.next_lesson_id
+              ? { next_lesson_id: ctx.next_lesson_id }
+              : {})
+          }
         : undefined
   }
 ];
