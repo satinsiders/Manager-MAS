@@ -49,6 +49,21 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
 })();
 
 (async () => {
+  const { fetchLatestSummary } = await import('./index');
+  const { supabase } = await import('../../packages/shared/supabase');
+
+  (supabase as any).storage = {
+    from: () => ({
+      download: async () => ({ data: null, error: new Error('missing') }),
+    }),
+  } as any;
+
+  const summaries = await fetchLatestSummary();
+  assert.equal(Array.isArray(summaries), true);
+  assert.equal(summaries.length, 0);
+})();
+
+(async () => {
   const { getNextCurriculumVersion } = await import('./index');
   const mockClient = {
     from: (table: string) => ({
