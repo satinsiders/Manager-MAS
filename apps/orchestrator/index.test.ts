@@ -15,7 +15,7 @@ process.env.SUPERFASTSAT_API_URL = 'http://localhost';
   // start mock server
   let dispatcherBody: any = null;
   let lessonPickerBody: any = null;
-  let lessonPickerResp: any = { minutes: 5 };
+  let lessonPickerResp: any = { minutes: 5, next_lesson_id: 'l42' };
   const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
@@ -48,16 +48,22 @@ process.env.SUPERFASTSAT_API_URL = 'http://localhost';
 
     class MockRedis {
       store: Record<string, any> = {};
+      getThrowKey: string | null = null;
       async set(key: string, value: string) {
         this.store[key] = value;
       }
       async get(key: string) {
+        if (this.getThrowKey === key) throw new Error('boom');
         return this.store[key] ?? null;
+      }
+      async del(key: string) {
+        delete this.store[key];
       }
     }
 
     const memory = await import('../../packages/shared/memory');
-    memory.setMemoryClient(new MockRedis());
+    const mockRedis = new MockRedis();
+    memory.setMemoryClient(mockRedis);
 
     const { default: handler } = await import('./index');
     const { supabase } = await import('../../packages/shared/supabase');
@@ -91,13 +97,18 @@ process.env.SUPERFASTSAT_API_URL = 'http://localhost';
     query: { run_type: 'daily' },
     headers: { authorization: `Bearer ${process.env.ORCHESTRATOR_SECRET}` }
   } as any;
+  let status = 0;
   const res: any = {
-    status(_code: number) {
+    status(code: number) {
+      status = code;
       return { json() {} };
     }
   };
 
   await handler(req, res);
+
+  assert.equal(status, 200);
+  assert.deepEqual(mockRedis.store, {});
 
   assert.equal(dispatcherBody.student_id, 1);
   assert.equal(dispatcherBody.minutes, 5);
@@ -109,10 +120,22 @@ process.env.SUPERFASTSAT_API_URL = 'http://localhost';
   lessonPickerResp = { minutes: 5, units: [{ id: 'u1' }] };
   await handler(req, res);
 
-  server.close();
-
+  assert.equal(status, 200);
+  assert.deepEqual(mockRedis.store, {});
   assert.deepEqual(dispatcherBody.units, [{ id: 'u1' }]);
   assert.equal(dispatcherBody.minutes, undefined);
-  console.log('Orchestrator authorization tests passed');
+
+  // failure during orchestration should also clean drafts
+  dispatcherBody = null;
+  lessonPickerResp = { minutes: 5 };
+  mockRedis.getThrowKey = 'draft:lesson-picker:1';
+  status = 0;
+  await handler(req, res);
+  assert.equal(status, 500);
+  assert.deepEqual(mockRedis.store, {});
+
+  server.close();
+
+  console.log('Orchestrator draft cleanup tests passed');
 })();
 

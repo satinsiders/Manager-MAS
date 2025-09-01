@@ -9,7 +9,7 @@ import {
 } from '../../packages/shared/config';
 import { callWithRetry } from '../../packages/shared/retry';
 import { notify } from '../../packages/shared/notify';
-import { readDraft, writeDraft } from '../../packages/shared/memory';
+import { readDraft, writeDraft, deleteDraft } from '../../packages/shared/memory';
 
 type StepDescriptor<T, C = any> = {
   url: string;
@@ -67,6 +67,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  const usedDraftKeys = new Set<string>();
+
   try {
     if (runType === 'daily') {
       const { data: students } = await supabase
@@ -74,42 +76,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .select('id, current_curriculum_version')
         .eq('active', true);
 
-        for (const student of students ?? []) {
-          let lastResp: any = true;
-          for (let i = 0; i < DAILY_STEPS.length; i++) {
-            if (!lastResp) break;
-            const step = DAILY_STEPS[i];
-            const prev = DAILY_STEPS[i - 1];
-            const context = prev
-              ? await readDraft(`${prev.label}:${student.id}`)
-              : undefined;
-            const body = step.buildBody(student, context);
-            if (!body) {
-              lastResp = null;
-              break;
-            }
-            lastResp = await callWithRetry(
-              step.url,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-              },
-              runType,
-              `${step.label}:${student.id}`,
-              3,
-              'orchestrator_log'
-            );
-            if (lastResp) {
-              try {
-                const ctx = await lastResp.json();
-                await writeDraft(`${step.label}:${student.id}`, ctx);
-              } catch {
-                /* ignore */
-              }
+      for (const student of students ?? []) {
+        let lastResp: any = true;
+        for (let i = 0; i < DAILY_STEPS.length; i++) {
+          if (!lastResp) break;
+          const step = DAILY_STEPS[i];
+          const prev = DAILY_STEPS[i - 1];
+          const context = prev
+            ? await readDraft(`${prev.label}:${student.id}`)
+            : undefined;
+          const body = step.buildBody(student, context);
+          if (!body) {
+            lastResp = null;
+            break;
+          }
+          lastResp = await callWithRetry(
+            step.url,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            },
+            runType,
+            `${step.label}:${student.id}`,
+            3,
+            'orchestrator_log'
+          );
+          if (lastResp) {
+            try {
+              const ctx = await lastResp.json();
+              const key = `${step.label}:${student.id}`;
+              await writeDraft(key, ctx);
+              usedDraftKeys.add(key);
+            } catch {
+              /* ignore */
             }
           }
         }
+      }
     } else {
       for (const step of WEEKLY_STEPS) {
         const body = step.buildBody(undefined);
@@ -137,5 +141,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       'orchestrator'
     );
     res.status(500).json({ error: 'orchestration failed' });
+  } finally {
+    if (runType === 'daily') {
+      for (const key of usedDraftKeys) {
+        await deleteDraft(key);
+      }
+    }
   }
 }

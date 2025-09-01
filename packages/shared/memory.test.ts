@@ -25,6 +25,9 @@ class MockRedis {
   async get(key: string) {
     return this.store[key] ?? null;
   }
+  async del(key: string) {
+    delete this.store[key];
+  }
 }
 
 (async () => {
@@ -41,6 +44,9 @@ class MockRedis {
 
   const val = await memory.readDraft<{ foo: string }>('user1');
   assert.deepEqual(val, { foo: 'bar' });
+
+  await memory.deleteDraft('user1');
+  assert.equal(mock.store['draft:user1'], undefined);
 
   const missing = await memory.readDraft('missing');
   assert.equal(missing, null);

@@ -34,3 +34,7 @@ export async function readDraft<T>(key: string): Promise<T | null> {
   }
   return data as T;
 }
+
+export async function deleteDraft(key: string) {
+  await client.del(`draft:${key}`);
+}
