@@ -5,7 +5,7 @@ import { callWithRetry } from '../../packages/shared/retry';
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { text } = req.body as { text: string };
   try {
-    await callWithRetry(
+    const resp = await callWithRetry(
       SLACK_WEBHOOK_URL,
       {
         method: 'POST',
@@ -15,6 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       'notification-bot',
       'slack'
     );
+    if (!resp) throw new Error('slack request failed');
     res.status(200).json({ sent: true });
   } catch (err:any) {
     console.error(err);
