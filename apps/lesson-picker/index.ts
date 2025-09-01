@@ -83,6 +83,20 @@ export async function selectNextLesson(
 
   if (!next) throw new Error('no lesson match');
 
+  // Provisional log entry for dispatch tracking
+  try {
+    await s
+      .from('dispatch_log')
+      .insert({
+        student_id,
+        lesson_id: next.id,
+        status: 'selected',
+        sent_at: new Date().toISOString(),
+      });
+  } catch (err) {
+    console.error('dispatch_log insert failed', err);
+  }
+
   // Attempt to gather units for the chosen lesson from curriculum
   let units: any[] = [];
   if (curriculum_version !== undefined) {
