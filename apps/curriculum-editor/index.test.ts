@@ -46,3 +46,28 @@ process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
   assert.equal(summaries[0].summary.student_id, '1');
   assert.equal(summaries[1].summary.student_id, '2');
 })();
+
+(async () => {
+  const { getNextCurriculumVersion } = await import('./index');
+  const mockClient = {
+    from: (table: string) => ({
+      select: () => ({
+        eq: () => ({
+          order: () => ({
+            limit: async () => ({
+              data:
+                table === 'curricula'
+                  ? [{ version: 2 }]
+                  : table === 'curricula_drafts'
+                  ? [{ version: 3 }]
+                  : [],
+            }),
+          }),
+        }),
+      }),
+    }),
+  } as any;
+
+  const next = await getNextCurriculumVersion('student', mockClient);
+  assert.equal(next, 4);
+})();
