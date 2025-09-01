@@ -3,20 +3,28 @@ import OpenAI from 'openai';
 import { supabase } from '../../packages/shared/supabase';
 import { OPENAI_API_KEY } from '../../packages/shared/config';
 import { LATEST_SUMMARY_PATH } from '../../packages/shared/summary';
+import { notify } from '../../packages/shared/notify';
 
 export async function fetchLatestSummary() {
-  const { data: file } = await supabase.storage
-    .from('summaries')
-    .download(LATEST_SUMMARY_PATH);
-  const rawText = file ? await file.text() : '{}';
-  let parsed: any = {};
   try {
-    parsed = JSON.parse(rawText);
+    const { data: file, error } = await supabase.storage
+      .from('summaries')
+      .download(LATEST_SUMMARY_PATH);
+    if (error || !file) return [];
+    const rawText = await file.text();
+    if (!rawText) return [];
+    let parsed: any;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      await notify('Failed to parse latest summary', 'curriculum-editor');
+      return [];
+    }
+    const students: any[] = Array.isArray(parsed.students) ? parsed.students : [];
+    return students.map((s) => ({ summary: s, summaryText: JSON.stringify(s) }));
   } catch {
-    parsed = {};
+    return [];
   }
-  const students: any[] = Array.isArray(parsed.students) ? parsed.students : [];
-  return students.map((s) => ({ summary: s, summaryText: JSON.stringify(s) }));
 }
 
 export async function getNextCurriculumVersion(
