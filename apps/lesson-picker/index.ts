@@ -118,13 +118,14 @@ export async function selectNextLesson(
   if (units.length === 0) {
     const { data: assigns } = await s
       .from('assignments')
-      .select('id, lesson_id, questions_json')
+      .select('id, lesson_id, questions_json, duration_minutes')
       .eq('student_id', student_id)
       .eq('lesson_id', next.id);
     units =
       assigns?.map((a: any) => ({
         id: a.id,
         lesson_id: a.lesson_id,
+        duration_minutes: a.duration_minutes,
         questions: a.questions_json,
       })) ?? [];
   }
