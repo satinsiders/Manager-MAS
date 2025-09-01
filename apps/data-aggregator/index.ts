@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createHash } from 'crypto';
 import { supabase } from '../../packages/shared/supabase';
 import { LATEST_SUMMARY_PATH } from '../../packages/shared/summary';
+import { notify } from '../../packages/shared/notify';
 import { generatePerformanceChart, PerformancePoint } from './chartGenerator';
 
 interface Performance {
@@ -102,10 +103,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
     const hash = createHash('sha256').update(content).digest('hex');
-
+    await notify('Data Aggregator run succeeded', 'data-aggregator');
     res.status(200).json({ saved: true, hash });
   } catch (err: any) {
     console.error(err);
+    await notify(
+      `Data Aggregator run failed: ${err.message}`,
+      'data-aggregator'
+    );
     res.status(500).json({ error: 'aggregation failed' });
   }
 }

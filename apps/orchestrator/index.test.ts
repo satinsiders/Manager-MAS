@@ -14,6 +14,7 @@ process.env.ORCHESTRATOR_SECRET = 'secret';
   // start mock server
   let dispatcherBody: any = null;
   let lessonPickerBody: any = null;
+  let notifyBody: any = null;
   const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
@@ -26,6 +27,10 @@ process.env.ORCHESTRATOR_SECRET = 'secret';
         );
       } else if (req.url === '/dispatcher') {
         dispatcherBody = body ? JSON.parse(body) : null;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end('{}');
+      } else if (req.url === '/notify') {
+        notifyBody = body ? JSON.parse(body) : null;
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end('{}');
       } else {
@@ -102,6 +107,7 @@ process.env.ORCHESTRATOR_SECRET = 'secret';
 
   assert.equal(dispatcherBody.log_id, 'log1');
   assert.equal(lessonPickerBody.curriculum_version, 2);
+  assert.equal(notifyBody.text, 'Orchestrator daily run succeeded');
   console.log('Orchestrator authorization tests passed');
 })();
 

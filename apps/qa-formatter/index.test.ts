@@ -16,9 +16,29 @@ process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
 
 (async () => {
   // Stub network and database interactions used by notify
+  const http = await import('node:http');
+  let notifyCalls: string[] = [];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', () => {
+      if (req.url === '/notify') {
+        notifyCalls.push(JSON.parse(body).text);
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const port = (server.address() as any).port;
+  process.env.NOTIFICATION_BOT_URL = `http://localhost:${port}/notify`;
+
   const supabaseModule = await import('../../packages/shared/supabase');
   const supabase = supabaseModule.supabase as any;
-  supabase.from = () => ({ insert: async () => ({}), update: async () => ({}) });
+  supabase.from = () => ({
+    insert: async () => ({}),
+    update: (_fields: any) => ({ eq: async () => ({}) })
+  });
 
   const handler = (await import('./index')).default;
 
@@ -58,6 +78,7 @@ process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
   await handler({ body: { curriculum: dupCurriculum, qa_user: 'tester' } } as any, res1 as any);
   assert.equal(res1.statusCode, 400);
   assert.deepEqual(res1.body, { error: 'invalid curriculum' });
+  assert.ok(notifyCalls[0].startsWith('Curriculum validation failed'));
 
   // Missing duration_minutes should also trigger validation error
   const missingCurriculum = JSON.parse(JSON.stringify(baseCurriculum));
@@ -66,4 +87,13 @@ process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
   await handler({ body: { curriculum: missingCurriculum, qa_user: 'tester' } } as any, res2 as any);
   assert.equal(res2.statusCode, 400);
   assert.deepEqual(res2.body, { error: 'invalid curriculum' });
+  assert.ok(notifyCalls[1].startsWith('Curriculum validation failed'));
+
+  const res3 = createRes();
+  await handler({ body: { curriculum: baseCurriculum, qa_user: 'tester' } } as any, res3 as any);
+  assert.equal(res3.statusCode, 200);
+  assert.deepEqual(res3.body, { updated: true });
+  assert.equal(notifyCalls[2], 'QA & Formatter run succeeded');
+
+  server.close();
 })();

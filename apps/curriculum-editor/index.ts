@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { supabase } from '../../packages/shared/supabase';
 import { OPENAI_API_KEY } from '../../packages/shared/config';
 import { LATEST_SUMMARY_PATH } from '../../packages/shared/summary';
+import { notify } from '../../packages/shared/notify';
 
 export async function fetchLatestSummary() {
   const { data: file } = await supabase.storage
@@ -102,10 +103,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       versions.push({ student_id, version: newVersion });
     }
-
+    await notify('Curriculum Editor run succeeded', 'curriculum-editor');
     res.status(200).json({ versions });
   } catch (err: any) {
     console.error(err);
+    await notify(
+      `Curriculum Editor run failed: ${err.message}`,
+      'curriculum-editor'
+    );
     res.status(500).json({ error: 'curriculum update failed' });
   }
 }

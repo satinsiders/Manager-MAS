@@ -7,6 +7,7 @@ import {
   UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN,
 } from '../../packages/shared/config';
+import { notify } from '../../packages/shared/notify';
 
 const redis = new Redis({
   url: UPSTASH_REDIS_REST_URL,
@@ -91,12 +92,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .single();
       logId = log?.id;
     }
-
+    await notify('Lesson Picker run succeeded', 'lesson-picker');
     res
       .status(200)
       .json({ lesson_id: lesson?.id, assignment_id: assignmentId, log_id: logId });
   } catch (err:any) {
     console.error(err);
+    await notify(
+      `Lesson Picker run failed: ${err.message}`,
+      'lesson-picker'
+    );
     res.status(500).json({ error: 'lesson selection failed' });
   }
 }

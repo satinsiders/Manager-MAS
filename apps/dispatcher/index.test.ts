@@ -16,6 +16,23 @@ process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
 process.env.SUPERFASTSAT_API_URL = 'http://example.com';
 
 (async () => {
+  const http = await import('node:http');
+  let notifyCalls: string[] = [];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', () => {
+      if (req.url === '/notify') {
+        notifyCalls.push(JSON.parse(body).text);
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const port = (server.address() as any).port;
+  process.env.NOTIFICATION_BOT_URL = `http://localhost:${port}/notify`;
+
   const { default: handler } = await import('./index');
   const { supabase } = await import('../../packages/shared/supabase');
 
@@ -50,7 +67,7 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
         })
       };
     }
-    return {} as any;
+    return { insert: async () => ({}) } as any;
   };
 
   let fetchCalled = false;
@@ -71,6 +88,7 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
   assert.equal(studentUpdated.id, 'student1');
   assert.ok(studentUpdated.last_lesson_sent);
   assert.equal(studentUpdated.last_lesson_id, 'lesson1');
+  assert.deepEqual(notifyCalls, ['Dispatcher run succeeded']);
 
   // failure path
   dispatchUpdated = null;
@@ -84,6 +102,12 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
   await handler(req, res);
   assert.equal(fetchCalled, true);
   assert.equal(dispatchUpdated.status, 'failed');
+  assert.deepEqual(notifyCalls, [
+    'Dispatcher run succeeded',
+    'Dispatcher run failed: SuperfastSAT API responded undefined',
+  ]);
+
+  server.close();
 
   console.log('Dispatcher used log_id');
 })();

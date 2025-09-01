@@ -75,10 +75,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from('students')
       .update({ current_curriculum_version: curriculum.version })
       .eq('id', curriculum.student_id);
-
+    await notify('QA & Formatter run succeeded', 'qa-formatter');
     res.status(200).json({ updated: true });
   } catch (err:any) {
     console.error(err);
+    await notify(`QA & Formatter run failed: ${err.message}`, 'qa-formatter');
     res.status(500).json({ error: 'qa failed' });
   }
 }

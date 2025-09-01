@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { OPENAI_API_KEY } from '../../packages/shared/config';
+import { notify } from '../../packages/shared/notify';
 
 // `agents` is a new beta feature and may not be typed yet in the SDK, so we
 // cast the client to `any` when calling it.
@@ -65,8 +66,11 @@ async function setupAgents() {
 }
 
 if (require.main === module) {
-  setupAgents().catch((err) => {
-    console.error('Failed to setup agents:', err);
-    process.exit(1);
-  });
+  setupAgents()
+    .then(() => notify('Agent setup succeeded', 'agent-setup'))
+    .catch((err) => {
+      notify(`Agent setup failed: ${err.message}`, 'agent-setup');
+      console.error('Failed to setup agents:', err);
+      process.exit(1);
+    });
 }

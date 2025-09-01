@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from '../../packages/shared/supabase';
+import { notify } from '../../packages/shared/notify';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { log_id } = req.body as { log_id: string };
@@ -39,6 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               last_lesson_id: log.lesson_id
             })
             .eq('id', log.student_id);
+          await notify('Dispatcher run succeeded', 'dispatcher');
           res.status(200).json({ status: 'dispatched' });
           return;
         } else {
@@ -62,6 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from('dispatch_log')
       .update({ status: 'failed' })
       .eq('id', log_id);
+    await notify(`Dispatcher run failed: ${err.message}`, 'dispatcher');
     res.status(500).json({ error: 'dispatch failed' });
   }
 }

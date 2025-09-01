@@ -4,6 +4,7 @@ import {
   UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN,
 } from '../../packages/shared/config';
+import { notify } from '../../packages/shared/notify';
 
 const redis = new Redis({
   url: UPSTASH_REDIS_REST_URL,
@@ -42,10 +43,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .single();
 
     await updateLastScores(student_id, score);
-
+    await notify('Performance Recorder run succeeded', 'performance-recorder');
     res.status(200).json({ id: data?.id });
   } catch (err:any) {
     console.error(err);
+    await notify(
+      `Performance Recorder run failed: ${err.message}`,
+      'performance-recorder'
+    );
     res.status(500).json({ error: 'record failed' });
   }
 }
