@@ -5,7 +5,7 @@ import {
   UPSTASH_REDIS_REST_TOKEN,
 } from '../../packages/shared/config';
 
-const redis = new Redis({
+export const redis = new Redis({
   url: UPSTASH_REDIS_REST_URL,
   token: UPSTASH_REDIS_REST_TOKEN,
 });
@@ -26,7 +26,11 @@ export async function updateLastScores(
   await client.expire(key, LAST_SCORES_TTL);
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse,
+  client = redis,
+) {
   const { student_id, lesson_id, score, confidence_rating } = req.body as {
     student_id: string;
     lesson_id: string;
@@ -37,11 +41,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { supabase } = await import('../../packages/shared/supabase');
     const { data } = await supabase
       .from('performances')
-      .insert({ student_id, lesson_id, score, confidence_rating })
+      .insert({
+        student_id,
+        lesson_id,
+        score,
+        confidence_rating: confidence_rating ?? null,
+      })
       .select()
       .single();
 
-    await updateLastScores(student_id, score);
+    await updateLastScores(student_id, score, client);
 
     res.status(200).json({ id: data?.id });
   } catch (err:any) {
