@@ -19,11 +19,13 @@ async function selectUnits(curriculum: any, minutes: number) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { student_id, minutes = 0, units: presetUnits } = req.body as {
-    student_id: string;
-    minutes?: number;
-    units?: any[];
-  };
+  const { student_id, minutes = 0, units: presetUnits, next_lesson_id } =
+    req.body as {
+      student_id: string;
+      minutes?: number;
+      units?: any[];
+      next_lesson_id?: string;
+    };
 
   try {
     let selected: { units: any[]; total: number; lastLessonId?: string } = {
@@ -77,6 +79,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         minutes: selected.total,
         channel: 'auto',
         status,
+        ...(next_lesson_id
+          ? { requested_lesson_id: next_lesson_id }
+          : {}),
         ...(selected.lastLessonId ? { lesson_id: selected.lastLessonId } : {}),
         ...(response.ok ? { sent_at: new Date().toISOString() } : {}),
       })

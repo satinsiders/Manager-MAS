@@ -101,6 +101,7 @@ process.env.SUPERFASTSAT_API_URL = 'http://localhost';
 
   assert.equal(dispatcherBody.student_id, 1);
   assert.equal(dispatcherBody.minutes, 5);
+  assert.equal(dispatcherBody.next_lesson_id, 'l42');
   assert.equal(lessonPickerBody.curriculum_version, 2);
 
   // authorized request - units present
