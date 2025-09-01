@@ -19,72 +19,64 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
   const { default: handler } = await import('./index');
   const { supabase } = await import('../../packages/shared/supabase');
 
-  let dispatchUpdated: any = null;
+  let inserted: any = null;
   let studentUpdated: any = null;
+
+  const curriculum = {
+    lessons: [
+      { id: 'l1', units: [{ id: 'u1', duration_minutes: 3 }, { id: 'u2', duration_minutes: 3 }] },
+      { id: 'l2', units: [{ id: 'u3', duration_minutes: 4 }] }
+    ]
+  };
+
   (supabase as any).from = (table: string) => {
-    if (table === 'dispatch_log') {
-      return {
-        select: () => ({
-          eq: () => ({ single: async () => ({ data: { id: 'log1', lesson_id: 'lesson1', student_id: 'student1' } }) })
-        }),
-        update: (fields: any) => ({
-          eq: (_col: string, id: string) => {
-            dispatchUpdated = { id, ...fields };
-            return Promise.resolve({});
-          }
-        })
-      };
-    }
-    if (table === 'lessons') {
-      return {
-        select: () => ({ eq: () => ({ single: async () => ({ data: { id: 'lesson1' } }) }) })
-      };
-    }
     if (table === 'students') {
       return {
+        select: () => ({ eq: () => ({ single: async () => ({ data: { current_curriculum_version: 1 } }) }) }),
         update: (fields: any) => ({
-          eq: (_col: string, id: string) => {
-            studentUpdated = { id, ...fields };
+          eq: () => {
+            studentUpdated = fields;
             return Promise.resolve({});
           }
         })
+      };
+    }
+    if (table === 'curricula') {
+      return {
+        select: () => ({
+          eq: () => ({
+            eq: () => ({ single: async () => ({ data: { curriculum } }) })
+          })
+        })
+      };
+    }
+    if (table === 'dispatch_log') {
+      return {
+        insert: (fields: any) => {
+          inserted = fields;
+          return { select: () => ({ single: async () => ({ data: { id: 'log1' } }) }) };
+        }
       };
     }
     return {} as any;
   };
 
-  let fetchCalled = false;
-  (globalThis as any).fetch = async (_url: string, _opts: any) => {
-    fetchCalled = true;
+  let fetchBody: any = null;
+  (globalThis as any).fetch = async (_url: string, opts: any) => {
+    fetchBody = JSON.parse(opts.body);
     return { ok: true } as any;
   };
 
-  const req = { body: { log_id: 'log1' } } as any;
+  const req = { body: { student_id: 's1', minutes: 5 } } as any;
   const res: any = { status() { return { json() {} }; } };
 
   await handler(req, res);
 
-  assert.equal(fetchCalled, true);
-  assert.equal(dispatchUpdated.id, 'log1');
-  assert.equal(dispatchUpdated.status, 'sent');
-  assert.ok(dispatchUpdated.sent_at);
-  assert.equal(studentUpdated.id, 'student1');
+  assert.deepEqual(fetchBody.units.map((u: any) => u.id), ['u1', 'u2']);
+  assert.equal(inserted.minutes, 6);
+  assert.deepEqual(inserted.unit_ids, ['u1', 'u2']);
   assert.ok(studentUpdated.last_lesson_sent);
-  assert.equal(studentUpdated.last_lesson_id, 'lesson1');
 
-  // failure path
-  dispatchUpdated = null;
-  studentUpdated = null;
-  fetchCalled = false;
-  (globalThis as any).fetch = async () => {
-    fetchCalled = true;
-    return { ok: false } as any;
-  };
-
-  await handler(req, res);
-  assert.equal(fetchCalled, true);
-  assert.equal(dispatchUpdated.status, 'failed');
-
-  console.log('Dispatcher used log_id');
+  console.log('Dispatcher unit selection tests passed');
 })();
 

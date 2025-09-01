@@ -32,7 +32,12 @@ const DAILY_STEPS: StepDescriptor<
   {
     url: DISPATCHER_URL,
     label: 'dispatcher',
-    buildBody: (_student, ctx) => (ctx?.log_id ? { log_id: ctx.log_id } : undefined)
+    buildBody: (student, ctx) =>
+      ctx?.units
+        ? { student_id: student.id, units: ctx.units }
+        : ctx?.minutes
+        ? { student_id: student.id, minutes: ctx.minutes }
+        : undefined
   }
 ];
 
