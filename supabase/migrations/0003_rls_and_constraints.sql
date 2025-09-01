@@ -20,6 +20,16 @@ create policy insert_assignments on assignments for insert with check (true);
 create policy select_curricula on curricula for select using (true);
 create policy insert_curricula on curricula for insert with check (true);
 
+-- Explicitly deny updates and deletes on append-only tables
+create policy update_lessons_denied on lessons for update using (false) with check (false);
+create policy delete_lessons_denied on lessons for delete using (false);
+
+create policy update_performances_denied on performances for update using (false) with check (false);
+create policy delete_performances_denied on performances for delete using (false);
+
+create policy update_assignments_denied on assignments for update using (false) with check (false);
+create policy delete_assignments_denied on assignments for delete using (false);
+
 create policy select_students on students for select using (true);
 create policy select_dispatch_log on dispatch_log for select using (true);
 create policy select_orchestrator_log on orchestrator_log for select using (true);
