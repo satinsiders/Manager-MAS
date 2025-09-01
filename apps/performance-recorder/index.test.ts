@@ -1,7 +1,6 @@
 import assert from 'assert';
 
 // Set env variables before importing modules
-
 process.env.SLACK_WEBHOOK_URL = 'http://example.com';
 process.env.OPENAI_API_KEY = 'test';
 process.env.SUPABASE_URL = 'http://example.com';
@@ -25,9 +24,36 @@ class MockRedis {
 }
 
 (async () => {
-  const { updateLastScores, LAST_SCORES_TTL } = await import('./index');
-  const redis = new MockRedis();
-  await updateLastScores('student', 1, redis as any);
-  assert.deepStrictEqual(redis.lastExpire, [`last_3_scores:student`, LAST_SCORES_TTL]);
-  console.log('TTL set correctly');
+  const { default: handler, LAST_SCORES_TTL } = await import('./index');
+  const { supabase } = await import('../../packages/shared/supabase');
+
+  let inserted: any = null;
+  (supabase as any).from = (_table: string) => ({
+    insert(fields: any) {
+      inserted = fields;
+      return { select: () => ({ single: async () => ({ data: { id: '1' } }) }) };
+    },
+  });
+
+  const mockRedis = new MockRedis();
+
+  const req = {
+    body: { student_id: 's1', lesson_id: 'l1', score: 80, confidence_rating: 0.9 },
+  } as any;
+  const res: any = { status() { return { json() {} }; } };
+
+  await handler(req, res, mockRedis as any);
+
+  assert.deepStrictEqual(inserted, {
+    student_id: 's1',
+    lesson_id: 'l1',
+    score: 80,
+    confidence_rating: 0.9,
+  });
+  assert.deepStrictEqual(mockRedis.lastExpire, [
+    'last_3_scores:s1',
+    LAST_SCORES_TTL,
+  ]);
+
+  console.log('Performance recorded and TTL set');
 })();
