@@ -22,18 +22,64 @@ class MockRedis {
 
 let rpcArgs: any = null;
 const mockSupabase = {
-  from(_table: string) {
-    return {
-      select() {
-        return {
-          eq() {
-            return {
-              single: async () => ({ data: { preferred_topics: ['algebra'], last_lesson_id: 'l1' } })
-            };
-          }
-        };
-      }
-    };
+  from(table: string) {
+    if (table === 'students') {
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                single: async () => ({
+                  data: {
+                    preferred_topics: ['algebra'],
+                    last_lesson_id: 'l1'
+                  }
+                })
+              };
+            }
+          };
+        }
+      };
+    }
+    if (table === 'curricula') {
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                eq() {
+                  return {
+                    single: async () => ({
+                      data: {
+                        curriculum: {
+                          lessons: [
+                            { id: 'l3', units: [{ id: 'u1', duration_minutes: 5 }] }
+                          ]
+                        }
+                      }
+                    })
+                  };
+                }
+              };
+            }
+          };
+        }
+      };
+    }
+    if (table === 'assignments') {
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                eq: () => ({ data: [] })
+              };
+            }
+          };
+        }
+      };
+    }
+    return {} as any;
   },
   async rpc(fn: string, args: any) {
     rpcArgs = { fn, args };
@@ -49,12 +95,13 @@ const mockSupabase = {
 
 (async () => {
   const { selectNextLesson } = await import('./index');
-  const result = await selectNextLesson('student1', {
+  const result = await selectNextLesson('student1', 2, {
     redis: new MockRedis() as any,
     supabase: mockSupabase as any
   });
   assert.equal(result.next_lesson_id, 'l3');
   assert.equal(result.minutes, 15);
+  assert.equal(result.units[0].id, 'u1');
   assert.equal(rpcArgs.fn, 'match_lessons');
   console.log('Lesson picker selection tests passed');
 })();
