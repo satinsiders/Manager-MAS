@@ -47,14 +47,26 @@ const mockSupabase = {
   }
 };
 
+class MockOpenAI {
+  embeddings = {
+    create: async (_opts: any) => ({
+      data: [
+        { embedding: Array(1536).fill(0.1) }
+      ]
+    })
+  };
+}
+
 (async () => {
   const { selectNextLesson } = await import('./index');
   const result = await selectNextLesson('student1', {
     redis: new MockRedis() as any,
-    supabase: mockSupabase as any
+    supabase: mockSupabase as any,
+    openai: new MockOpenAI() as any
   });
   assert.equal(result.next_lesson_id, 'l3');
   assert.equal(result.minutes, 15);
   assert.equal(rpcArgs.fn, 'match_lessons');
+  assert.equal(rpcArgs.args.query_embedding.length, 1536);
   console.log('Lesson picker selection tests passed');
 })();
