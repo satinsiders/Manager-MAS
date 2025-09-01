@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from '../../packages/shared/supabase';
+import { SUPERFASTSAT_API_URL } from '../../packages/shared/config';
 
 async function selectUnits(curriculum: any, minutes: number) {
   const units: any[] = [];
@@ -63,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const response = await fetch(`${process.env.SUPERFASTSAT_API_URL}/units`, {
+    const response = await fetch(`${SUPERFASTSAT_API_URL}/units`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ units: selected.units }),

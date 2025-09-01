@@ -9,11 +9,13 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'key';
 process.env.UPSTASH_REDIS_REST_URL = 'http://localhost';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
 process.env.ORCHESTRATOR_SECRET = 'secret';
+process.env.SUPERFASTSAT_API_URL = 'http://localhost';
 
 (async () => {
   // start mock server
   let dispatcherBody: any = null;
   let lessonPickerBody: any = null;
+  let lessonPickerResp: any = { minutes: 5 };
   const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
@@ -21,7 +23,7 @@ process.env.ORCHESTRATOR_SECRET = 'secret';
       if (req.url === '/lesson-picker') {
         lessonPickerBody = body ? JSON.parse(body) : null;
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ minutes: 5, next_lesson_id: 'l42' }));
+        res.end(JSON.stringify(lessonPickerResp));
       } else if (req.url === '/dispatcher') {
         dispatcherBody = body ? JSON.parse(body) : null;
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -83,7 +85,7 @@ process.env.ORCHESTRATOR_SECRET = 'secret';
   await handler(reqUnauthorized, resUnauthorized);
   assert.equal(unauthorizedStatus, 401);
 
-  // authorized request
+  // authorized request - minutes only
   dispatcherBody = null;
   const req = {
     query: { run_type: 'daily' },
@@ -96,12 +98,21 @@ process.env.ORCHESTRATOR_SECRET = 'secret';
   };
 
   await handler(req, res);
-  server.close();
 
   assert.equal(dispatcherBody.student_id, 1);
   assert.equal(dispatcherBody.minutes, 5);
   assert.equal(dispatcherBody.next_lesson_id, 'l42');
   assert.equal(lessonPickerBody.curriculum_version, 2);
+
+  // authorized request - units present
+  dispatcherBody = null;
+  lessonPickerResp = { minutes: 5, units: [{ id: 'u1' }] };
+  await handler(req, res);
+
+  server.close();
+
+  assert.deepEqual(dispatcherBody.units, [{ id: 'u1' }]);
+  assert.equal(dispatcherBody.minutes, undefined);
   console.log('Orchestrator authorization tests passed');
 })();
 

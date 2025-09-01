@@ -33,7 +33,7 @@ const DAILY_STEPS: StepDescriptor<
     url: DISPATCHER_URL,
     label: 'dispatcher',
     buildBody: (student, ctx) =>
-      ctx?.units
+      ctx?.units && ctx.units.length > 0
         ? { student_id: student.id, units: ctx.units }
         : ctx?.minutes
         ? {

@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Redis } from '@upstash/redis';
+import OpenAI from 'openai';
 import {
+  OPENAI_API_KEY,
   UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN,
 } from '../../packages/shared/config';
@@ -11,6 +13,7 @@ const redis = new Redis({
   url: UPSTASH_REDIS_REST_URL,
   token: UPSTASH_REDIS_REST_TOKEN,
 });
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 const VECTOR_DIM = 1536;
 const MATCH_THRESHOLD = 0.75;
@@ -18,9 +21,10 @@ const MATCH_COUNT = 5;
 
 export async function selectNextLesson(
   student_id: string,
-  clients = { redis, supabase },
+  curriculum_version?: number,
+  clients = { redis, supabase, openai },
 ) {
-  const { redis: r, supabase: s } = clients;
+  const { redis: r, supabase: s, openai: o } = clients;
 
   // Read last 3 scores from Redis to gauge performance
   const recentScores = await r.lrange(`last_3_scores:${student_id}`, 0, 2);
@@ -39,11 +43,23 @@ export async function selectNextLesson(
 
   const topics = student?.preferred_topics ?? [];
 
-  // Very naive embedding: char codes normalised into a 1536 vector
-  const embedding = Array(VECTOR_DIM).fill(0);
-  const str = topics.join(' ');
-  for (let i = 0; i < str.length && i < VECTOR_DIM; i++) {
-    embedding[i] = str.charCodeAt(i) / 255;
+  let embedding: number[] = Array(VECTOR_DIM).fill(0);
+  try {
+    const response = await o.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: topics.join(' '),
+    });
+    const raw = response.data[0]?.embedding || [];
+    if (raw.length !== VECTOR_DIM) {
+      for (let i = 0; i < Math.min(VECTOR_DIM, raw.length); i++) {
+        embedding[i] = raw[i];
+      }
+    } else {
+      embedding = raw;
+    }
+  } catch (err) {
+    console.error(err);
+    throw new Error('embedding failed');
   }
 
   const { data: matches } = await s.rpc('match_lessons', {
@@ -67,13 +83,48 @@ export async function selectNextLesson(
 
   if (!next) throw new Error('no lesson match');
 
-  return { next_lesson_id: next.id, minutes };
+  // Attempt to gather units for the chosen lesson from curriculum
+  let units: any[] = [];
+  if (curriculum_version !== undefined) {
+    const { data: curr } = await s
+      .from('curricula')
+      .select('curriculum')
+      .eq('student_id', student_id)
+      .eq('version', curriculum_version)
+      .single();
+    const lesson = curr?.curriculum?.lessons?.find(
+      (l: any) => l.id === next.id
+    );
+    if (lesson?.units) {
+      units = lesson.units;
+    }
+  }
+
+  // Fallback to assignments if no curriculum units found
+  if (units.length === 0) {
+    const { data: assigns } = await s
+      .from('assignments')
+      .select('id, lesson_id, questions_json')
+      .eq('student_id', student_id)
+      .eq('lesson_id', next.id);
+    units =
+      assigns?.map((a: any) => ({
+        id: a.id,
+        lesson_id: a.lesson_id,
+        questions: a.questions_json,
+      })) ?? [];
+  }
+
+  return { next_lesson_id: next.id, minutes, units };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { student_id } = req.body as { student_id: string };
+  const { student_id, curriculum_version } = req.body as {
+    student_id: string;
+    curriculum_version?: number;
+  };
   try {
-    const result = await selectNextLesson(student_id);
+    const result = await selectNextLesson(student_id, curriculum_version);
     res.status(200).json(result);
   } catch (err: any) {
     console.error(err);

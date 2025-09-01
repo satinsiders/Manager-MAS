@@ -13,6 +13,7 @@ process.env.CURRICULUM_EDITOR_URL = 'http://example.com';
 process.env.QA_FORMATTER_URL = 'http://example.com';
 process.env.UPSTASH_REDIS_REST_URL = 'http://example.com';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
+process.env.SUPERFASTSAT_API_URL = 'http://example.com';
 
 class MockRedis {
   async lrange(_key: string, _start: number, _end: number) {
@@ -22,18 +23,64 @@ class MockRedis {
 
 let rpcArgs: any = null;
 const mockSupabase = {
-  from(_table: string) {
-    return {
-      select() {
-        return {
-          eq() {
-            return {
-              single: async () => ({ data: { preferred_topics: ['algebra'], last_lesson_id: 'l1' } })
-            };
-          }
-        };
-      }
-    };
+  from(table: string) {
+    if (table === 'students') {
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                single: async () => ({
+                  data: {
+                    preferred_topics: ['algebra'],
+                    last_lesson_id: 'l1'
+                  }
+                })
+              };
+            }
+          };
+        }
+      };
+    }
+    if (table === 'curricula') {
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                eq() {
+                  return {
+                    single: async () => ({
+                      data: {
+                        curriculum: {
+                          lessons: [
+                            { id: 'l3', units: [{ id: 'u1', duration_minutes: 5 }] }
+                          ]
+                        }
+                      }
+                    })
+                  };
+                }
+              };
+            }
+          };
+        }
+      };
+    }
+    if (table === 'assignments') {
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                eq: () => ({ data: [] })
+              };
+            }
+          };
+        }
+      };
+    }
+    return {} as any;
   },
   async rpc(fn: string, args: any) {
     rpcArgs = { fn, args };
@@ -47,14 +94,27 @@ const mockSupabase = {
   }
 };
 
+class MockOpenAI {
+  embeddings = {
+    create: async (_opts: any) => ({
+      data: [
+        { embedding: Array(1536).fill(0.1) }
+      ]
+    })
+  };
+}
+
 (async () => {
   const { selectNextLesson } = await import('./index');
-  const result = await selectNextLesson('student1', {
+  const result = await selectNextLesson('student1', 2, {
     redis: new MockRedis() as any,
-    supabase: mockSupabase as any
+    supabase: mockSupabase as any,
+    openai: new MockOpenAI() as any
   });
   assert.equal(result.next_lesson_id, 'l3');
   assert.equal(result.minutes, 15);
+  assert.equal(result.units[0].id, 'u1');
   assert.equal(rpcArgs.fn, 'match_lessons');
+  assert.equal(rpcArgs.args.query_embedding.length, 1536);
   console.log('Lesson picker selection tests passed');
 })();

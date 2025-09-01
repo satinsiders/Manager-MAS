@@ -13,6 +13,7 @@ process.env.CURRICULUM_EDITOR_URL = 'http://example.com';
 process.env.QA_FORMATTER_URL = 'http://example.com';
 process.env.UPSTASH_REDIS_REST_URL = 'http://example.com';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
+process.env.SUPERFASTSAT_API_URL = 'http://example.com';
 
 (async () => {
   let nextStatus = 500;
