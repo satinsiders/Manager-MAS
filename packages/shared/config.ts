@@ -11,6 +11,7 @@ const envSchema = z.object({
   DATA_AGGREGATOR_URL: z.string().url(),
   CURRICULUM_EDITOR_URL: z.string().url(),
   QA_FORMATTER_URL: z.string().url(),
+  SUPERFASTSAT_API_URL: z.string().url(),
   UPSTASH_REDIS_REST_URL: z.string().url(),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
 });
@@ -32,6 +33,7 @@ export const {
   DATA_AGGREGATOR_URL,
   CURRICULUM_EDITOR_URL,
   QA_FORMATTER_URL,
+  SUPERFASTSAT_API_URL,
   UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN,
 } = env.data;
