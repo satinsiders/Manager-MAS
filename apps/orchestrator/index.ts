@@ -5,7 +5,8 @@ import {
   DISPATCHER_URL,
   DATA_AGGREGATOR_URL,
   CURRICULUM_EDITOR_URL,
-  QA_FORMATTER_URL
+  QA_FORMATTER_URL,
+  ORCHESTRATOR_SECRET,
 } from '../../packages/shared/config';
 import { callWithRetry } from '../../packages/shared/retry';
 import { notify } from '../../packages/shared/notify';
@@ -54,7 +55,7 @@ const WEEKLY_STEPS: StepDescriptor<void>[] = [
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const authHeader = req.headers['authorization'];
-  const expected = `Bearer ${process.env.ORCHESTRATOR_SECRET}`;
+  const expected = `Bearer ${ORCHESTRATOR_SECRET}`;
   if (!authHeader || authHeader !== expected) {
     res.status(401).json({ error: 'unauthorized' });
     return;

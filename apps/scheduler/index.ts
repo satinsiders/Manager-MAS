@@ -1,8 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import {
+  ORCHESTRATOR_URL,
+  ORCHESTRATOR_SECRET,
+  SCHEDULER_SECRET,
+} from '../../packages/shared/config';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const authHeader = req.headers['authorization'];
-  const expected = `Bearer ${process.env.SCHEDULER_SECRET}`;
+  const expected = `Bearer ${SCHEDULER_SECRET}`;
   if (!authHeader || authHeader !== expected) {
     res.status(401).json({ error: 'unauthorized' });
     return;
@@ -15,11 +20,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const url = `${process.env.ORCHESTRATOR_URL}?run_type=${runType}`;
+    const url = `${ORCHESTRATOR_URL}?run_type=${runType}`;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.ORCHESTRATOR_SECRET}`,
+        Authorization: `Bearer ${ORCHESTRATOR_SECRET}`,
       },
     });
 

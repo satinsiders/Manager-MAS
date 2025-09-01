@@ -14,6 +14,9 @@ const envSchema = z.object({
   SUPERFASTSAT_API_URL: z.string().url(),
   UPSTASH_REDIS_REST_URL: z.string().url(),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
+  ORCHESTRATOR_URL: z.string().url(),
+  ORCHESTRATOR_SECRET: z.string().min(1),
+  SCHEDULER_SECRET: z.string().min(1),
 });
 
 const env = envSchema.safeParse(process.env);
@@ -36,4 +39,7 @@ export const {
   SUPERFASTSAT_API_URL,
   UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN,
+  ORCHESTRATOR_URL,
+  ORCHESTRATOR_SECRET,
+  SCHEDULER_SECRET,
 } = env.data;
