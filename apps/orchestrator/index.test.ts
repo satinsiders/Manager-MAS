@@ -9,6 +9,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'key';
 process.env.UPSTASH_REDIS_REST_URL = 'http://localhost';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
 process.env.ORCHESTRATOR_SECRET = 'secret';
+process.env.SUPERFASTSAT_API_URL = 'http://localhost';
 
 (async () => {
   // start mock server
