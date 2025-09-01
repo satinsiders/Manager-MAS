@@ -19,10 +19,14 @@ const VECTOR_DIM = 1536;
 const MATCH_THRESHOLD = 0.75;
 const MATCH_COUNT = 5;
 
+type Lesson = { id: string; difficulty: number; topic?: string; [key: string]: any };
+type RuleFilter = (lesson: Lesson) => boolean;
+
 export async function selectNextLesson(
   student_id: string,
   curriculum_version?: number,
   clients = { redis, supabase, openai },
+  ruleFilters: RuleFilter[] = [],
 ) {
   const { redis: r, supabase: s, openai: o } = clients;
 
@@ -68,17 +72,24 @@ export async function selectNextLesson(
     match_count: MATCH_COUNT,
   });
 
-  const candidates = (matches ?? []).filter(
-    (l: any) => l.id !== student?.last_lesson_id,
-  );
+  const candidates: Lesson[] = (matches ?? [])
+    .filter((l: Lesson) => l.id !== student?.last_lesson_id)
+    .filter(
+      (l: Lesson) => topics.length === 0 || topics.includes(l.topic ?? ''),
+    );
+
+  const filtered =
+    ruleFilters.length > 0
+      ? candidates.filter((l) => ruleFilters.every((fn) => fn(l)))
+      : candidates;
 
   // Difficulty rule: struggling students get easier lessons
-  let next = candidates[0];
-  if (candidates.length > 1) {
+  let next = filtered[0];
+  if (filtered.length > 1) {
     next =
       avgScore < 60
-        ? candidates.sort((a: any, b: any) => a.difficulty - b.difficulty)[0]
-        : candidates.sort((a: any, b: any) => b.difficulty - a.difficulty)[0];
+        ? filtered.sort((a, b) => a.difficulty - b.difficulty)[0]
+        : filtered.sort((a, b) => b.difficulty - a.difficulty)[0];
   }
 
   if (!next) throw new Error('no lesson match');

@@ -35,7 +35,7 @@ function baseFrom(table: string) {
             return {
               single: async () => ({
                 data: {
-                  preferred_topics: ['algebra'],
+                  preferred_topics: ['algebra', 'geometry'],
                   last_lesson_id: 'l1'
                 }
               })
@@ -103,9 +103,9 @@ function createSupabase(onInsert: (fields: any) => Promise<void>) {
       rpcArgs = { fn, args };
       return {
         data: [
-          { id: 'l1', difficulty: 1 },
-          { id: 'l2', difficulty: 2 },
-          { id: 'l3', difficulty: 3 }
+          { id: 'l1', difficulty: 1, topic: 'history' },
+          { id: 'l2', difficulty: 2, topic: 'algebra' },
+          { id: 'l3', difficulty: 3, topic: 'geometry' }
         ]
       };
     }
@@ -131,7 +131,7 @@ function createSupabaseWithAssignments(onInsert: (fields: any) => Promise<void>)
                 return {
                   single: async () => ({
                     data: {
-                      preferred_topics: ['algebra'],
+                      preferred_topics: ['algebra', 'geometry'],
                       last_lesson_id: 'l1'
                     }
                   })
@@ -192,9 +192,9 @@ function createSupabaseWithAssignments(onInsert: (fields: any) => Promise<void>)
       rpcArgs = { fn, args };
       return {
         data: [
-          { id: 'l1', difficulty: 1 },
-          { id: 'l2', difficulty: 2 },
-          { id: 'l3', difficulty: 3 }
+          { id: 'l1', difficulty: 1, topic: 'history' },
+          { id: 'l2', difficulty: 2, topic: 'algebra' },
+          { id: 'l3', difficulty: 3, topic: 'geometry' }
         ]
       };
     }
@@ -259,6 +259,25 @@ class MockOpenAI {
   assert.equal(result3.units[0].id, 'a1');
   assert.equal(result3.units[0].duration_minutes, 12);
   assert.deepEqual(result3.units[0].questions, [{ prompt: 'Q1' }]);
+
+  // Rule filters: avoid repeating same topic
+  const supabaseRules = createSupabase(async () => {});
+  const avoidGeometry = (lesson: any) => lesson.topic !== 'geometry';
+  const result4 = await selectNextLesson('student1', 2, {
+    redis: new MockRedis() as any,
+    supabase: supabaseRules as any,
+    openai: new MockOpenAI() as any,
+  }, [avoidGeometry]);
+  assert.equal(result4.next_lesson_id, 'l2');
+
+  // Rule filters: limit difficulty jumps
+  const limitJump = (lesson: any) => Math.abs(lesson.difficulty - 1) <= 1;
+  const result5 = await selectNextLesson('student1', 2, {
+    redis: new MockRedis() as any,
+    supabase: supabaseRules as any,
+    openai: new MockOpenAI() as any,
+  }, [limitJump]);
+  assert.equal(result5.next_lesson_id, 'l2');
 
   console.log('Lesson picker dispatch log tests passed');
 })();
