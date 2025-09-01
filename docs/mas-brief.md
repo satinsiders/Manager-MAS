@@ -40,7 +40,8 @@ All processes are driven by an LLM-based multi-agent system with observability a
 | `students` | `id, name, timezone, current_curriculum_version, last_lesson_sent, last_lesson_id, preferred_topics` | Manage personalization status |
 | `lessons` | `id, topic, difficulty, asset_url, vector_embedding` | Fixed lesson catalog |
 | `performances` | `id, student_id, lesson_id, score, confidence_rating` | Source data for learning results |
-| `curricula` | `version, student_id, curriculum json, qa_user, approved_at` | Version-controlled learning plan |
+| `curricula_drafts` | `version, student_id, curriculum json` | Proposed curricula awaiting QA |
+| `curricula` | `version, student_id, curriculum json, qa_user, approved_at` | Approved, version-controlled learning plan |
 | `assignments` | `id, lesson_id, student_id, questions_json, generated_by` | Supplementary problem sets |
 | `dispatch_log` | `id, student_id, lesson_id, sent_at, channel, status` | Operational visibility |
 
@@ -65,8 +66,8 @@ Accuracy priority: External evidence > Long-term > Short-term > Working.
 | Dispatcher | `students`, `lessons`, `dispatch_log` | `dispatch_log(status)` |
 | Performance Recorder | – | `performances` |
 | Data Aggregator | `performances`, charts 📊 | Supabase Storage `performance_summary.json` |
-| Curriculum Editor | `performance_summary`, `lessons` | New `curricula` |
-| QA & Formatter | New `curricula` | `students.current_curriculum_version` |
+| Curriculum Editor | `performance_summary`, `lessons` | `curricula_drafts` |
+| QA & Formatter | `curricula_drafts` | `curricula`, `students.current_curriculum_version` |
 | Notification Bot | Event stream | Slack |
 
 ## 6. Infrastructure Stack (Blueprint 1)

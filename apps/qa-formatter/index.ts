@@ -63,15 +63,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    await supabase
-      .from('curricula')
-      .update({
-        curriculum,
-        qa_user,
-        approved_at: new Date().toISOString()
-      })
-      .eq('version', curriculum.version)
-      .eq('student_id', curriculum.student_id);
+    await supabase.from('curricula').insert({
+      version: curriculum.version,
+      student_id: curriculum.student_id,
+      curriculum,
+      qa_user,
+      approved_at: new Date().toISOString()
+    });
 
     await supabase
       .from('students')

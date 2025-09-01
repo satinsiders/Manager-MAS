@@ -18,7 +18,7 @@ process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
   // Stub network and database interactions used by notify
   const supabaseModule = await import('../../packages/shared/supabase');
   const supabase = supabaseModule.supabase as any;
-  supabase.from = () => ({ insert: async () => ({}) });
+  supabase.from = () => ({ insert: async () => ({}), update: async () => ({}) });
 
   const handler = (await import('./index')).default;
 

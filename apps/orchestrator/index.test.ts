@@ -13,11 +13,13 @@ process.env.ORCHESTRATOR_SECRET = 'secret';
 (async () => {
   // start mock server
   let dispatcherBody: any = null;
+  let lessonPickerBody: any = null;
   const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
     req.on('end', () => {
       if (req.url === '/lesson-picker') {
+        lessonPickerBody = body ? JSON.parse(body) : null;
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(
           JSON.stringify({ lesson_id: 'l1', assignment_id: 'a1', log_id: 'log1' })
@@ -50,7 +52,7 @@ process.env.ORCHESTRATOR_SECRET = 'secret';
   (supabase as any).from = (table: string) => {
     if (table === 'students') {
       return {
-        select: () => ({ eq: () => ({ data: [{ id: 1 }] }) })
+        select: () => ({ eq: () => ({ data: [{ id: 1, current_curriculum_version: 2 }] }) })
       };
     }
     return {
@@ -86,6 +88,7 @@ process.env.ORCHESTRATOR_SECRET = 'secret';
   server.close();
 
   assert.equal(dispatcherBody.log_id, 'log1');
+  assert.equal(lessonPickerBody.curriculum_version, 2);
   console.log('Orchestrator authorization tests passed');
 })();
 

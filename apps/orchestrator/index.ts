@@ -16,11 +16,17 @@ type StepDescriptor<T, C = any> = {
   buildBody: (arg: T, context?: C) => any;
 };
 
-const DAILY_STEPS: StepDescriptor<{ id: number }, any>[] = [
+const DAILY_STEPS: StepDescriptor<
+  { id: number; current_curriculum_version: number },
+  any
+>[] = [
   {
     url: LESSON_PICKER_URL,
     label: 'lesson-picker',
-    buildBody: (student) => ({ student_id: student.id })
+    buildBody: (student) => ({
+      student_id: student.id,
+      curriculum_version: student.current_curriculum_version
+    })
   },
   {
     url: DISPATCHER_URL,
@@ -53,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (runType === 'daily') {
       const { data: students } = await supabase
         .from('students')
-        .select('id')
+        .select('id, current_curriculum_version')
         .eq('active', true);
 
       for (const student of students ?? []) {

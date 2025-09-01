@@ -6,6 +6,7 @@ The database uses row level security (RLS) on all tables. Select access is allow
 - **performances** – insert only, no updates or deletes.
 - **assignments** – insert only, no updates or deletes.
 - **curricula** – versioned history, insert only.
+ - **curricula_drafts** – mutable staging table for proposed curricula.
 
 Foreign key relations use `ON DELETE RESTRICT` to prevent accidental cascades. Triggers on the append-only tables raise exceptions if an update or delete is attempted.
 
