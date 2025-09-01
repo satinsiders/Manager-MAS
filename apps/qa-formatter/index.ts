@@ -45,8 +45,25 @@ function enforceStyle(curriculum: any) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { curriculum, qa_user } = req.body as { curriculum: any; qa_user: string };
+  const {
+    student_id,
+    version,
+    qa_user
+  } = req.body as { student_id: string; version: number; qa_user: string };
   try {
+    const { data: draft } = await supabase
+      .from('curricula_drafts')
+      .select('curriculum')
+      .eq('student_id', student_id)
+      .eq('version', version)
+      .single();
+
+    const curriculum = draft?.curriculum;
+    if (!curriculum) {
+      res.status(404).json({ error: 'draft not found' });
+      return;
+    }
+
     if (!validate(curriculum)) {
       const message = `Curriculum validation failed: ${ajv.errorsText(validate.errors)}`;
       await notify(message, 'qa-formatter');
@@ -64,8 +81,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     await supabase.from('curricula').insert({
-      version: curriculum.version,
-      student_id: curriculum.student_id,
+      version,
+      student_id,
       curriculum,
       qa_user,
       approved_at: new Date().toISOString()
@@ -73,11 +90,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     await supabase
       .from('students')
-      .update({ current_curriculum_version: curriculum.version })
-      .eq('id', curriculum.student_id);
+      .update({ current_curriculum_version: version })
+      .eq('id', student_id);
+
+    await supabase
+      .from('curricula_drafts')
+      .delete()
+      .eq('student_id', student_id)
+      .eq('version', version);
 
     res.status(200).json({ updated: true });
-  } catch (err:any) {
+  } catch (err: any) {
     console.error(err);
     res.status(500).json({ error: 'qa failed' });
   }
