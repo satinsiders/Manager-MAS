@@ -4,15 +4,17 @@ import { supabase } from '../../packages/shared/supabase';
 async function selectUnits(curriculum: any, minutes: number) {
   const units: any[] = [];
   let total = 0;
+  let lastLessonId: string | undefined;
   for (const lesson of curriculum.lessons ?? []) {
     for (const unit of lesson.units ?? []) {
       if (total >= minutes) break;
       units.push(unit);
       total += Number(unit.duration_minutes) || 0;
+      lastLessonId = lesson.id;
     }
     if (total >= minutes) break;
   }
-  return { units, total };
+  return { units, total, lastLessonId };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -23,7 +25,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   try {
-    let selected = { units: presetUnits ?? [], total: 0 };
+    let selected: { units: any[]; total: number; lastLessonId?: string } = {
+      units: presetUnits ?? [],
+      total: 0,
+      lastLessonId: undefined,
+    };
 
     if (!presetUnits) {
       const { data: student } = await supabase
@@ -49,6 +55,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         (sum, u: any) => sum + (Number(u.duration_minutes) || 0),
         0
       );
+      if (presetUnits.length > 0) {
+        const lastUnit = presetUnits[presetUnits.length - 1];
+        selected.lastLessonId = lastUnit.lesson_id || lastUnit.lessonId;
+      }
     }
 
     const response = await fetch(`${process.env.SUPERFASTSAT_API_URL}/units`, {
@@ -66,6 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         minutes: selected.total,
         channel: 'auto',
         status,
+        ...(selected.lastLessonId ? { lesson_id: selected.lastLessonId } : {}),
         ...(response.ok ? { sent_at: new Date().toISOString() } : {}),
       })
       .select('id')
@@ -73,7 +84,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     await supabase
       .from('students')
-      .update({ last_lesson_sent: new Date().toISOString() })
+      .update({
+        last_lesson_sent: new Date().toISOString(),
+        ...(selected.lastLessonId ? { last_lesson_id: selected.lastLessonId } : {}),
+      })
       .eq('id', student_id);
 
     if (!response.ok) {

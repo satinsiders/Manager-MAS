@@ -75,7 +75,9 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
   assert.deepEqual(fetchBody.units.map((u: any) => u.id), ['u1', 'u2']);
   assert.equal(inserted.minutes, 6);
   assert.deepEqual(inserted.unit_ids, ['u1', 'u2']);
+  assert.equal(inserted.lesson_id, 'l1');
   assert.ok(studentUpdated.last_lesson_sent);
+  assert.equal(studentUpdated.last_lesson_id, 'l1');
 
   console.log('Dispatcher unit selection tests passed');
 })();
