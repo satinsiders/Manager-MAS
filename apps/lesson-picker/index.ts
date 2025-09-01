@@ -66,8 +66,20 @@ export async function selectNextLesson(
   }
 
   if (!next) throw new Error('no lesson match');
+  const next_lesson_id = next.id;
 
-  return { next_lesson_id: next.id, minutes };
+  try {
+    await s.from('dispatch_log').insert({
+      student_id,
+      lesson_id: next_lesson_id,
+      status: 'selected',
+      sent_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('failed to log selection', err);
+  }
+
+  return { next_lesson_id, minutes };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

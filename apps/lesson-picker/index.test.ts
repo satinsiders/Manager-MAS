@@ -20,35 +20,52 @@ class MockRedis {
   }
 }
 
-let rpcArgs: any = null;
-const mockSupabase = {
-  from(_table: string) {
-    return {
-      select() {
+(async () => {
+  const { selectNextLesson } = await import('./index');
+
+  let rpcArgs: any = null;
+
+  // Successful insert case
+  let inserted: any = null;
+  const mockSupabase = {
+    from(table: string) {
+      if (table === 'students') {
         return {
-          eq() {
+          select() {
             return {
-              single: async () => ({ data: { preferred_topics: ['algebra'], last_lesson_id: 'l1' } })
+              eq() {
+                return {
+                  single: async () => ({
+                    data: { preferred_topics: ['algebra'], last_lesson_id: 'l1' }
+                  })
+                };
+              }
             };
           }
         };
       }
-    };
-  },
-  async rpc(fn: string, args: any) {
-    rpcArgs = { fn, args };
-    return {
-      data: [
-        { id: 'l1', difficulty: 1 },
-        { id: 'l2', difficulty: 2 },
-        { id: 'l3', difficulty: 3 }
-      ]
-    };
-  }
-};
+      if (table === 'dispatch_log') {
+        return {
+          insert(fields: any) {
+            inserted = fields;
+            return Promise.resolve({});
+          }
+        };
+      }
+      return {} as any;
+    },
+    async rpc(fn: string, args: any) {
+      rpcArgs = { fn, args };
+      return {
+        data: [
+          { id: 'l1', difficulty: 1 },
+          { id: 'l2', difficulty: 2 },
+          { id: 'l3', difficulty: 3 }
+        ]
+      };
+    }
+  };
 
-(async () => {
-  const { selectNextLesson } = await import('./index');
   const result = await selectNextLesson('student1', {
     redis: new MockRedis() as any,
     supabase: mockSupabase as any
@@ -56,5 +73,58 @@ const mockSupabase = {
   assert.equal(result.next_lesson_id, 'l3');
   assert.equal(result.minutes, 15);
   assert.equal(rpcArgs.fn, 'match_lessons');
+  assert.equal(inserted.student_id, 'student1');
+  assert.equal(inserted.lesson_id, 'l3');
+  assert.equal(inserted.status, 'selected');
+  assert.ok(inserted.sent_at);
+
+  // Failure case should not throw
+  let insertAttempted = false;
+  const failingSupabase = {
+    from(table: string) {
+      if (table === 'students') {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  single: async () => ({
+                    data: { preferred_topics: ['algebra'], last_lesson_id: 'l1' }
+                  })
+                };
+              }
+            };
+          }
+        };
+      }
+      if (table === 'dispatch_log') {
+        return {
+          insert() {
+            insertAttempted = true;
+            return Promise.reject(new Error('insert failed'));
+          }
+        };
+      }
+      return {} as any;
+    },
+    async rpc(fn: string, args: any) {
+      return {
+        data: [
+          { id: 'l1', difficulty: 1 },
+          { id: 'l2', difficulty: 2 },
+          { id: 'l3', difficulty: 3 }
+        ]
+      };
+    }
+  };
+
+  const result2 = await selectNextLesson('student1', {
+    redis: new MockRedis() as any,
+    supabase: failingSupabase as any
+  });
+  assert.equal(result2.next_lesson_id, 'l3');
+  assert.equal(insertAttempted, true);
+
   console.log('Lesson picker selection tests passed');
 })();
+
