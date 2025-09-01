@@ -16,6 +16,7 @@ process.env.SUPERFASTSAT_API_URL = 'http://localhost';
   let dispatcherBody: any = null;
   let lessonPickerBody: any = null;
   let lessonPickerResp: any = { minutes: 5, next_lesson_id: 'l42' };
+  const qaBodies: any[] = [];
   const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
@@ -26,6 +27,10 @@ process.env.SUPERFASTSAT_API_URL = 'http://localhost';
         res.end(JSON.stringify(lessonPickerResp));
       } else if (req.url === '/dispatcher') {
         dispatcherBody = body ? JSON.parse(body) : null;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end('{}');
+      } else if (req.url === '/qa') {
+        qaBodies.push(body ? JSON.parse(body) : null);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end('{}');
       } else {
@@ -68,10 +73,33 @@ process.env.SUPERFASTSAT_API_URL = 'http://localhost';
     const { default: handler } = await import('./index');
     const { supabase } = await import('../../packages/shared/supabase');
 
+  const drafts = [
+    {
+      student_id: 's1',
+      version: 1,
+      curriculum: { version: 1 },
+      qa_user: 'qa1',
+    },
+  ];
+  const deleted: any[] = [];
+
   (supabase as any).from = (table: string) => {
     if (table === 'students') {
       return {
         select: () => ({ eq: () => ({ data: [{ id: 1, current_curriculum_version: 2 }] }) })
+      };
+    }
+    if (table === 'curricula_drafts') {
+      return {
+        select: () => ({ data: drafts }),
+        delete: () => ({
+          eq: (_col: string, val: any) => ({
+            eq: (_col2: string, val2: any) => {
+              deleted.push({ student_id: val, version: val2 });
+              return Promise.resolve({});
+            },
+          }),
+        }),
       };
     }
     return {
@@ -133,6 +161,17 @@ process.env.SUPERFASTSAT_API_URL = 'http://localhost';
   await handler(req, res);
   assert.equal(status, 500);
   assert.deepEqual(mockRedis.store, {});
+
+  // weekly run should process drafts
+  const reqWeekly = {
+    query: { run_type: 'weekly' },
+    headers: { authorization: `Bearer ${process.env.ORCHESTRATOR_SECRET}` },
+  } as any;
+  await handler(reqWeekly, res);
+  assert.equal(qaBodies.length, 1);
+  assert.equal(qaBodies[0].curriculum.version, 1);
+  assert.equal(qaBodies[0].qa_user, 'qa1');
+  assert.deepEqual(deleted, [{ student_id: 's1', version: 1 }]);
 
   server.close();
 
