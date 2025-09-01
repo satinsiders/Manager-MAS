@@ -47,7 +47,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from('dispatch_log')
       .select('lesson_id')
       .eq('student_id', student_id);
-    const dispatchedIds = previous?.map((d: any) => d.lesson_id) ?? [];
+    const dispatchedIds = [
+      ...(previous?.map((d: any) => d.lesson_id) ?? []),
+      (student as any)?.last_lesson_id
+    ].filter(Boolean);
 
     const avgScore =
       recentScores.length > 0
