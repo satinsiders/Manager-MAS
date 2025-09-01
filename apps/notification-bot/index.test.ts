@@ -17,6 +17,7 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
 process.env.ORCHESTRATOR_URL = 'http://example.com';
 process.env.ORCHESTRATOR_SECRET = 'secret';
 process.env.SCHEDULER_SECRET = 'sched-secret';
+process.env.AGENT_SECRET = 'agent-secret';
 
 (async () => {
   let nextStatus = 500;
@@ -32,7 +33,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   const supabase = supabaseModule.supabase as any;
   supabase.from = () => ({ insert: async () => ({}) });
 
-  const handler = (await import('./index')).default;
+    const handler = (await import('./index')).default;
 
   function createRes() {
     return {
@@ -48,19 +49,23 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
     };
   }
 
-  // failure path
-  nextStatus = 500;
-  const resFail = createRes();
-  await handler({ body: { text: 'hi' } } as any, resFail as any);
-  assert.equal(resFail.statusCode, 500);
-  assert.deepEqual(resFail.body, { error: 'notify failed' });
+    const unauthorizedRes = createRes();
+    await handler({ body: { text: 'hi' }, headers: {} } as any, unauthorizedRes as any);
+    assert.equal(unauthorizedRes.statusCode, 401);
 
-  // success path
-  nextStatus = 200;
-  const resOk = createRes();
-  await handler({ body: { text: 'hi' } } as any, resOk as any);
-  assert.equal(resOk.statusCode, 200);
-  assert.deepEqual(resOk.body, { sent: true });
+    // failure path
+    nextStatus = 500;
+    const resFail = createRes();
+    await handler({ body: { text: 'hi' }, headers: { authorization: `Bearer ${process.env.AGENT_SECRET}` } } as any, resFail as any);
+    assert.equal(resFail.statusCode, 500);
+    assert.deepEqual(resFail.body, { error: 'notify failed' });
+
+    // success path
+    nextStatus = 200;
+    const resOk = createRes();
+    await handler({ body: { text: 'hi' }, headers: { authorization: `Bearer ${process.env.AGENT_SECRET}` } } as any, resOk as any);
+    assert.equal(resOk.statusCode, 200);
+    assert.deepEqual(resOk.body, { sent: true });
 
   server.close();
   console.log('Notification bot tests passed');

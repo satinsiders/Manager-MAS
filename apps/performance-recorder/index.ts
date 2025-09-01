@@ -3,6 +3,7 @@ import { Redis } from '@upstash/redis';
 import {
   UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN,
+  AGENT_SECRET,
 } from '../../packages/shared/config';
 
 export const redis = new Redis({
@@ -31,6 +32,12 @@ export default async function handler(
   res: VercelResponse,
   client = redis,
 ) {
+  const authHeader = req.headers['authorization'];
+  const expected = `Bearer ${AGENT_SECRET}`;
+  if (!authHeader || authHeader !== expected) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const { student_id, lesson_id, score, confidence_rating } = req.body as {
     student_id: string;
     lesson_id: string;

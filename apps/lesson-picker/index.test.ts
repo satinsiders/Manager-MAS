@@ -17,6 +17,7 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
 process.env.ORCHESTRATOR_URL = 'http://example.com';
 process.env.ORCHESTRATOR_SECRET = 'secret';
 process.env.SCHEDULER_SECRET = 'sched-secret';
+process.env.AGENT_SECRET = 'agent-secret';
 
 class MockRedis {
   async lrange(_key: string, _start: number, _end: number) {

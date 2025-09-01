@@ -12,6 +12,7 @@ process.env.ORCHESTRATOR_SECRET = 'secret';
 process.env.SUPERFASTSAT_API_URL = 'http://localhost';
 process.env.ORCHESTRATOR_URL = 'http://localhost';
 process.env.SCHEDULER_SECRET = 'sched-secret';
+process.env.AGENT_SECRET = 'agent-secret';
 
 (async () => {
   // start mock server

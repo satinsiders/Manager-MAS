@@ -1,8 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { SLACK_WEBHOOK_URL } from '../../packages/shared/config';
+import { SLACK_WEBHOOK_URL, AGENT_SECRET } from '../../packages/shared/config';
 import { callWithRetry } from '../../packages/shared/retry';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const authHeader = req.headers['authorization'];
+  const expected = `Bearer ${AGENT_SECRET}`;
+  if (!authHeader || authHeader !== expected) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const { text } = req.body as { text: string };
   try {
     const resp = await callWithRetry(

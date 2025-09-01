@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import OpenAI from 'openai';
 import { supabase } from '../../packages/shared/supabase';
-import { OPENAI_API_KEY } from '../../packages/shared/config';
+import { OPENAI_API_KEY, AGENT_SECRET } from '../../packages/shared/config';
 import { LATEST_SUMMARY_PATH } from '../../packages/shared/summary';
 import { notify } from '../../packages/shared/notify';
 
@@ -53,6 +53,12 @@ export async function getNextCurriculumVersion(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const authHeader = req.headers['authorization'];
+  const expected = `Bearer ${AGENT_SECRET}`;
+  if (!authHeader || authHeader !== expected) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   try {
     // 1. Load performance summaries from Supabase storage
     const summaries = await fetchLatestSummary();

@@ -17,6 +17,8 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
 process.env.ORCHESTRATOR_URL = 'http://example.com';
 process.env.ORCHESTRATOR_SECRET = 'secret';
 process.env.SCHEDULER_SECRET = 'sched-secret';
+process.env.AGENT_SECRET = 'agent-secret';
+
 
 (async () => {
   const { default: handler } = await import('./index');
@@ -70,10 +72,31 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
     return { ok: true } as any;
   };
 
-  const req = { body: { student_id: 's1', minutes: 5, next_lesson_id: 'next1' } } as any;
-  const res: any = { status() { return { json() {} }; } };
+    function createRes() {
+      return {
+        statusCode: 0,
+        status(code: number) {
+          this.statusCode = code;
+          return { json() {} };
+        },
+      } as any;
+    }
 
-  await handler(req, res);
+    const unauthorizedRes = createRes();
+    await handler(
+      { body: { student_id: 's1', minutes: 5 }, headers: {} } as any,
+      unauthorizedRes,
+    );
+    assert.equal(unauthorizedRes.statusCode, 401);
+
+    const req = {
+      body: { student_id: 's1', minutes: 5, next_lesson_id: 'next1' },
+      headers: { authorization: `Bearer ${process.env.AGENT_SECRET}` },
+    } as any;
+    const res = createRes();
+
+    await handler(req, res);
+    assert.equal(res.statusCode, 200);
 
   assert.deepEqual(fetchBody.units.map((u: any) => u.id), ['u1', 'u2']);
   assert.equal(inserted.minutes, 6);

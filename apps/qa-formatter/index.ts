@@ -5,6 +5,7 @@ import addFormats from 'ajv-formats';
 import schema from '../../docs/curriculum.schema.json';
 import { supabase } from '../../packages/shared/supabase';
 import { notify } from '../../packages/shared/notify';
+import { AGENT_SECRET } from '../../packages/shared/config';
 const ajv = new Ajv({ allErrors: true });
 addFormats(ajv);
 addKeywords(ajv, ['uniqueItemProperties']);
@@ -45,6 +46,12 @@ function enforceStyle(curriculum: any) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const authHeader = req.headers['authorization'];
+  const expected = `Bearer ${AGENT_SECRET}`;
+  if (!authHeader || authHeader !== expected) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const {
     student_id,
     version,

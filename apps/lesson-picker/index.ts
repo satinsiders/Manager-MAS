@@ -5,6 +5,7 @@ import {
   OPENAI_API_KEY,
   UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN,
+  AGENT_SECRET,
 } from '../../packages/shared/config';
 import { supabase } from '../../packages/shared/supabase';
 
@@ -133,6 +134,12 @@ export async function selectNextLesson(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const authHeader = req.headers['authorization'];
+  const expected = `Bearer ${AGENT_SECRET}`;
+  if (!authHeader || authHeader !== expected) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const { student_id, curriculum_version } = req.body as {
     student_id: string;
     curriculum_version?: number;

@@ -17,6 +17,7 @@ const envSchema = z.object({
   ORCHESTRATOR_URL: z.string().url(),
   ORCHESTRATOR_SECRET: z.string().min(1),
   SCHEDULER_SECRET: z.string().min(1),
+  AGENT_SECRET: z.string().min(1),
 });
 
 const env = envSchema.safeParse(process.env);
@@ -42,4 +43,5 @@ export const {
   ORCHESTRATOR_URL,
   ORCHESTRATOR_SECRET,
   SCHEDULER_SECRET,
+  AGENT_SECRET,
 } = env.data;

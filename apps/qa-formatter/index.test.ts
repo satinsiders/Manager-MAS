@@ -17,6 +17,7 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
 process.env.ORCHESTRATOR_URL = 'http://example.com';
 process.env.ORCHESTRATOR_SECRET = 'secret';
 process.env.SCHEDULER_SECRET = 'sched-secret';
+process.env.AGENT_SECRET = 'agent-secret';
 
 (async () => {
   // Stub network and database interactions used by notify
@@ -49,7 +50,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
     return {};
   };
 
-  const handler = (await import('./index')).default;
+    const handler = (await import('./index')).default;
 
   function createRes() {
     return {
@@ -84,17 +85,32 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   const dupCurriculum = JSON.parse(JSON.stringify(baseCurriculum));
   dupCurriculum.lessons[0].units[1].id = dupCurriculum.lessons[0].units[0].id;
   draftCurriculum = dupCurriculum;
-  const res1 = createRes();
-  await handler(
-    {
-      body: {
-        student_id: baseCurriculum.student_id,
-        version: baseCurriculum.version,
-        qa_user: 'tester'
-      }
-    } as any,
-    res1 as any
-  );
+    const unauthorizedRes = createRes();
+    await handler(
+      {
+        body: {
+          student_id: baseCurriculum.student_id,
+          version: baseCurriculum.version,
+          qa_user: 'tester'
+        },
+        headers: {},
+      } as any,
+      unauthorizedRes as any,
+    );
+    assert.equal(unauthorizedRes.statusCode, 401);
+
+    const res1 = createRes();
+    await handler(
+      {
+        body: {
+          student_id: baseCurriculum.student_id,
+          version: baseCurriculum.version,
+          qa_user: 'tester'
+        },
+        headers: { authorization: `Bearer ${process.env.AGENT_SECRET}` },
+      } as any,
+      res1 as any
+    );
   assert.equal(res1.statusCode, 400);
   assert.deepEqual(res1.body, { error: 'invalid curriculum' });
 
@@ -102,17 +118,18 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   const missingCurriculum = JSON.parse(JSON.stringify(baseCurriculum));
   delete (missingCurriculum.lessons[0].units[1] as any).duration_minutes;
   draftCurriculum = missingCurriculum;
-  const res2 = createRes();
-  await handler(
-    {
-      body: {
-        student_id: baseCurriculum.student_id,
-        version: baseCurriculum.version,
-        qa_user: 'tester'
-      }
-    } as any,
-    res2 as any
-  );
+    const res2 = createRes();
+    await handler(
+      {
+        body: {
+          student_id: baseCurriculum.student_id,
+          version: baseCurriculum.version,
+          qa_user: 'tester'
+        },
+        headers: { authorization: `Bearer ${process.env.AGENT_SECRET}` },
+      } as any,
+      res2 as any
+    );
   assert.equal(res2.statusCode, 400);
   assert.deepEqual(res2.body, { error: 'invalid curriculum' });
   supabase.from = () => ({ insert: async () => ({}), update: async () => ({}) });

@@ -17,6 +17,7 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
 process.env.ORCHESTRATOR_URL = 'http://example.com';
 process.env.ORCHESTRATOR_SECRET = 'secret';
 process.env.SCHEDULER_SECRET = 'sched-secret';
+process.env.AGENT_SECRET = 'agent-secret';
 
 class MockRedis {
   public lastExpire: [string, number] | null = null;
@@ -41,12 +42,30 @@ class MockRedis {
 
   const mockRedis = new MockRedis();
 
+  function createRes() {
+    return {
+      statusCode: 0,
+      status(code: number) {
+        this.statusCode = code;
+        return {
+          json() {},
+        };
+      },
+    } as any;
+  }
+
+  const unauthorizedRes = createRes();
+  await handler({ body: { student_id: 's1', lesson_id: 'l1', score: 80 }, headers: {} } as any, unauthorizedRes, mockRedis as any);
+  assert.equal(unauthorizedRes.statusCode, 401);
+
   const req = {
     body: { student_id: 's1', lesson_id: 'l1', score: 80, confidence_rating: 0.9 },
+    headers: { authorization: `Bearer ${process.env.AGENT_SECRET}` },
   } as any;
-  const res: any = { status() { return { json() {} }; } };
+  const res = createRes();
 
   await handler(req, res, mockRedis as any);
+  assert.equal(res.statusCode, 200);
 
   assert.deepStrictEqual(inserted, {
     student_id: 's1',

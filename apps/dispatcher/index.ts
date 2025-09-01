@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from '../../packages/shared/supabase';
-import { SUPERFASTSAT_API_URL } from '../../packages/shared/config';
+import { SUPERFASTSAT_API_URL, AGENT_SECRET } from '../../packages/shared/config';
 
 async function selectUnits(curriculum: any, minutes: number) {
   const units: any[] = [];
@@ -19,6 +19,12 @@ async function selectUnits(curriculum: any, minutes: number) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const authHeader = req.headers['authorization'];
+  const expected = `Bearer ${AGENT_SECRET}`;
+  if (!authHeader || authHeader !== expected) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const { student_id, minutes = 0, units: presetUnits, next_lesson_id } =
     req.body as {
       student_id: string;

@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import { supabase } from '../../packages/shared/supabase';
 import { LATEST_SUMMARY_PATH } from '../../packages/shared/summary';
 import { generatePerformanceChart, PerformancePoint } from './chartGenerator';
+import { AGENT_SECRET } from '../../packages/shared/config';
 
 interface Performance {
   student_id: string;
@@ -68,6 +69,12 @@ export async function aggregateStudentStats(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const authHeader = req.headers['authorization'];
+  const expected = `Bearer ${AGENT_SECRET}`;
+  if (!authHeader || authHeader !== expected) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   try {
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const timestamp = new Date().toISOString();
