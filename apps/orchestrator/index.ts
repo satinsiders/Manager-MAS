@@ -134,7 +134,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const { data: drafts } = await supabase
         .from('curricula_drafts')
-        .select('student_id, version, curriculum, qa_user');
+        .select('student_id, version, qa_user');
 
       for (const draft of drafts ?? []) {
         const resp = await callWithRetry(
@@ -143,8 +143,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              curriculum: draft.curriculum,
-              qa_user: draft.qa_user
+              student_id: draft.student_id,
+              version: draft.version,
+              qa_user: draft.qa_user ?? 'system'
             })
           },
           runType,
@@ -153,7 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'orchestrator_log'
         );
 
-        if (resp) {
+        if (resp?.ok) {
           try {
             await supabase
               .from('curricula_drafts')

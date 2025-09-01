@@ -19,6 +19,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   let lessonPickerBody: any = null;
   let lessonPickerResp: any = { minutes: 5, next_lesson_id: 'l42' };
   const qaBodies: any[] = [];
+  let qaStatus = 200;
   const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
@@ -33,7 +34,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
         res.end('{}');
       } else if (req.url === '/qa') {
         qaBodies.push(body ? JSON.parse(body) : null);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(qaStatus, { 'Content-Type': 'application/json' });
         res.end('{}');
       } else {
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -75,15 +76,8 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
     const { default: handler } = await import('./index');
     const { supabase } = await import('../../packages/shared/supabase');
 
-  const drafts = [
-    {
-      student_id: 's1',
-      version: 1,
-      curriculum: { version: 1 },
-      qa_user: 'qa1',
-    },
-  ];
-  const deleted: any[] = [];
+  let drafts: any[] = [];
+  let deleted: any[] = [];
 
   (supabase as any).from = (table: string) => {
     if (table === 'students') {
@@ -164,16 +158,38 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   assert.equal(status, 500);
   assert.deepEqual(mockRedis.store, {});
 
-  // weekly run should process drafts
+  // weekly run should process drafts and retain qa_user
   const reqWeekly = {
     query: { run_type: 'weekly' },
     headers: { authorization: `Bearer ${process.env.ORCHESTRATOR_SECRET}` },
   } as any;
+
+  // successful run with qa_user defaulting when missing
+  qaBodies.length = 0;
+  drafts = [
+    { student_id: 's1', version: 1, qa_user: 'qa1' },
+    { student_id: 's2', version: 1 },
+  ];
+  deleted = [];
+  qaStatus = 200;
   await handler(reqWeekly, res);
-  assert.equal(qaBodies.length, 1);
-  assert.equal(qaBodies[0].curriculum.version, 1);
-  assert.equal(qaBodies[0].qa_user, 'qa1');
-  assert.deepEqual(deleted, [{ student_id: 's1', version: 1 }]);
+  assert.equal(qaBodies.length, 2);
+  assert.deepEqual(qaBodies[0], { student_id: 's1', version: 1, qa_user: 'qa1' });
+  assert.deepEqual(qaBodies[1], { student_id: 's2', version: 1, qa_user: 'system' });
+  assert.deepEqual(deleted, [
+    { student_id: 's1', version: 1 },
+    { student_id: 's2', version: 1 },
+  ]);
+
+  // failed run should not delete drafts
+  qaBodies.length = 0;
+  drafts = [{ student_id: 's3', version: 1, qa_user: 'qa3' }];
+  deleted = [];
+  qaStatus = 500;
+  await handler(reqWeekly, res);
+  assert.equal(qaBodies.length, 3); // retries
+  assert.deepEqual(qaBodies[0], { student_id: 's3', version: 1, qa_user: 'qa3' });
+  assert.deepEqual(deleted, []);
 
   server.close();
 
