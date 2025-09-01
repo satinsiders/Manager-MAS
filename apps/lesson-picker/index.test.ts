@@ -112,6 +112,95 @@ function createSupabase(onInsert: (fields: any) => Promise<void>) {
   };
 }
 
+function createSupabaseWithAssignments(onInsert: (fields: any) => Promise<void>) {
+  return {
+    from(table: string) {
+      if (table === 'dispatch_log') {
+        return {
+          insert: async (fields: any) => {
+            await onInsert(fields);
+            return {} as any;
+          }
+        };
+      }
+      if (table === 'students') {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  single: async () => ({
+                    data: {
+                      preferred_topics: ['algebra'],
+                      last_lesson_id: 'l1'
+                    }
+                  })
+                };
+              }
+            };
+          }
+        };
+      }
+      if (table === 'curricula') {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  eq() {
+                    return {
+                      single: async () => ({
+                        data: {
+                          curriculum: { lessons: [] }
+                        }
+                      })
+                    };
+                  }
+                };
+              }
+            };
+          }
+        };
+      }
+      if (table === 'assignments') {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  eq() {
+                    return {
+                      data: [
+                        {
+                          id: 'a1',
+                          lesson_id: 'l3',
+                          duration_minutes: 12,
+                          questions_json: [{ prompt: 'Q1' }]
+                        }
+                      ]
+                    };
+                  }
+                };
+              }
+            };
+          }
+        };
+      }
+      return {} as any;
+    },
+    async rpc(fn: string, args: any) {
+      rpcArgs = { fn, args };
+      return {
+        data: [
+          { id: 'l1', difficulty: 1 },
+          { id: 'l2', difficulty: 2 },
+          { id: 'l3', difficulty: 3 }
+        ]
+      };
+    }
+  };
+}
+
 class MockOpenAI {
   embeddings = {
     create: async (_opts: any) => ({
@@ -159,6 +248,17 @@ class MockOpenAI {
   });
   assert.equal(result2.next_lesson_id, 'l3');
   assert(attempted);
+
+  // Assignments fallback includes duration_minutes and questions
+  const supabaseAssign = createSupabaseWithAssignments(async () => {});
+  const result3 = await selectNextLesson('student1', 2, {
+    redis: new MockRedis() as any,
+    supabase: supabaseAssign as any,
+    openai: new MockOpenAI() as any
+  });
+  assert.equal(result3.units[0].id, 'a1');
+  assert.equal(result3.units[0].duration_minutes, 12);
+  assert.deepEqual(result3.units[0].questions, [{ prompt: 'Q1' }]);
 
   console.log('Lesson picker dispatch log tests passed');
 })();
