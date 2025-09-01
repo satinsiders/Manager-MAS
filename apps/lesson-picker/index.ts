@@ -21,6 +21,7 @@ const MATCH_COUNT = 5;
 
 export async function selectNextLesson(
   student_id: string,
+  curriculum_version?: number,
   clients = { redis, supabase, openai },
 ) {
   const { redis: r, supabase: s, openai: o } = clients;
@@ -82,13 +83,48 @@ export async function selectNextLesson(
 
   if (!next) throw new Error('no lesson match');
 
-  return { next_lesson_id: next.id, minutes };
+  // Attempt to gather units for the chosen lesson from curriculum
+  let units: any[] = [];
+  if (curriculum_version !== undefined) {
+    const { data: curr } = await s
+      .from('curricula')
+      .select('curriculum')
+      .eq('student_id', student_id)
+      .eq('version', curriculum_version)
+      .single();
+    const lesson = curr?.curriculum?.lessons?.find(
+      (l: any) => l.id === next.id
+    );
+    if (lesson?.units) {
+      units = lesson.units;
+    }
+  }
+
+  // Fallback to assignments if no curriculum units found
+  if (units.length === 0) {
+    const { data: assigns } = await s
+      .from('assignments')
+      .select('id, lesson_id, questions_json')
+      .eq('student_id', student_id)
+      .eq('lesson_id', next.id);
+    units =
+      assigns?.map((a: any) => ({
+        id: a.id,
+        lesson_id: a.lesson_id,
+        questions: a.questions_json,
+      })) ?? [];
+  }
+
+  return { next_lesson_id: next.id, minutes, units };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { student_id } = req.body as { student_id: string };
+  const { student_id, curriculum_version } = req.body as {
+    student_id: string;
+    curriculum_version?: number;
+  };
   try {
-    const result = await selectNextLesson(student_id);
+    const result = await selectNextLesson(student_id, curriculum_version);
     res.status(200).json(result);
   } catch (err: any) {
     console.error(err);
