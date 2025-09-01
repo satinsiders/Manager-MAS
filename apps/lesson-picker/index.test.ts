@@ -25,6 +25,13 @@ class MockRedis {
 }
 
 let rpcArgs: any = null;
+let studentRecord: any = {
+  preferred_topics: ['algebra'],
+  last_lesson_id: 'l1',
+  last_lesson_topic: 'algebra',
+  last_lesson_difficulty: 1,
+  last_lesson_at: new Date().toISOString()
+};
 
 function baseFrom(table: string) {
   if (table === 'students') {
@@ -34,10 +41,7 @@ function baseFrom(table: string) {
           eq() {
             return {
               single: async () => ({
-                data: {
-                  preferred_topics: ['algebra'],
-                  last_lesson_id: 'l1'
-                }
+                data: studentRecord
               })
             };
           }
@@ -103,9 +107,9 @@ function createSupabase(onInsert: (fields: any) => Promise<void>) {
       rpcArgs = { fn, args };
       return {
         data: [
-          { id: 'l1', difficulty: 1 },
-          { id: 'l2', difficulty: 2 },
-          { id: 'l3', difficulty: 3 }
+          { id: 'l1', difficulty: 1, topics: ['algebra'] },
+          { id: 'l2', difficulty: 2, topics: ['geometry'] },
+          { id: 'l3', difficulty: 3, topics: ['algebra'] }
         ]
       };
     }
@@ -159,6 +163,32 @@ class MockOpenAI {
   });
   assert.equal(result2.next_lesson_id, 'l3');
   assert(attempted);
+
+  // Rule filters
+  studentRecord.preferred_topics = ['algebra', 'geometry'];
+  const result3 = await selectNextLesson(
+    'student1',
+    2,
+    {
+      redis: new MockRedis() as any,
+      supabase: supabase as any,
+      openai: new MockOpenAI() as any,
+    },
+    { avoidTopicWithinDays: 2 },
+  );
+  assert.equal(result3.next_lesson_id, 'l2');
+
+  const result4 = await selectNextLesson(
+    'student1',
+    2,
+    {
+      redis: new MockRedis() as any,
+      supabase: supabase as any,
+      openai: new MockOpenAI() as any,
+    },
+    { maxDifficultyJump: 1 },
+  );
+  assert.equal(result4.next_lesson_id, 'l2');
 
   console.log('Lesson picker dispatch log tests passed');
 })();

@@ -23,6 +23,7 @@ export async function selectNextLesson(
   student_id: string,
   curriculum_version?: number,
   clients = { redis, supabase, openai },
+  rules: { avoidTopicWithinDays?: number; maxDifficultyJump?: number } = {},
 ) {
   const { redis: r, supabase: s, openai: o } = clients;
 
@@ -37,7 +38,9 @@ export async function selectNextLesson(
   // Fetch student preferences and history
   const { data: student } = await s
     .from('students')
-    .select('preferred_topics, last_lesson_id')
+    .select(
+      'preferred_topics, last_lesson_id, last_lesson_topic, last_lesson_difficulty, last_lesson_at',
+    )
     .eq('id', student_id)
     .single();
 
@@ -68,17 +71,56 @@ export async function selectNextLesson(
     match_count: MATCH_COUNT,
   });
 
-  const candidates = (matches ?? []).filter(
+  const topicMatches = (matches ?? []).filter(
+    (l: any) =>
+      topics.length === 0 ||
+      (l.topics || []).some((t: string) => topics.includes(t)),
+  );
+
+  const candidates = topicMatches.filter(
     (l: any) => l.id !== student?.last_lesson_id,
   );
 
+  let filtered = candidates;
+
+  if (
+    rules.avoidTopicWithinDays &&
+    student?.last_lesson_topic &&
+    student?.last_lesson_at
+  ) {
+    const lastAt = new Date(student.last_lesson_at);
+    const diffDays =
+      (Date.now() - lastAt.getTime()) / (1000 * 60 * 60 * 24);
+    if (diffDays < rules.avoidTopicWithinDays) {
+      filtered = filtered.filter(
+        (l: any) => !(l.topics || []).includes(student.last_lesson_topic!),
+      );
+    }
+  }
+
+  if (
+    rules.maxDifficultyJump !== undefined &&
+    student?.last_lesson_difficulty !== undefined &&
+    student?.last_lesson_difficulty !== null
+  ) {
+    filtered = filtered.filter(
+      (l: any) =>
+        Math.abs(l.difficulty - student.last_lesson_difficulty) <=
+        rules.maxDifficultyJump!,
+    );
+  }
+
+  if (filtered.length === 0) {
+    filtered = candidates;
+  }
+
   // Difficulty rule: struggling students get easier lessons
-  let next = candidates[0];
-  if (candidates.length > 1) {
+  let next = filtered[0];
+  if (filtered.length > 1) {
     next =
       avgScore < 60
-        ? candidates.sort((a: any, b: any) => a.difficulty - b.difficulty)[0]
-        : candidates.sort((a: any, b: any) => b.difficulty - a.difficulty)[0];
+        ? filtered.sort((a: any, b: any) => a.difficulty - b.difficulty)[0]
+        : filtered.sort((a: any, b: any) => b.difficulty - a.difficulty)[0];
   }
 
   if (!next) throw new Error('no lesson match');
@@ -133,12 +175,18 @@ export async function selectNextLesson(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { student_id, curriculum_version } = req.body as {
+  const { student_id, curriculum_version, rules } = req.body as {
     student_id: string;
     curriculum_version?: number;
+    rules?: { avoidTopicWithinDays?: number; maxDifficultyJump?: number };
   };
   try {
-    const result = await selectNextLesson(student_id, curriculum_version);
+    const result = await selectNextLesson(
+      student_id,
+      curriculum_version,
+      undefined,
+      rules,
+    );
     res.status(200).json(result);
   } catch (err: any) {
     console.error(err);
