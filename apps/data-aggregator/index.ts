@@ -55,7 +55,12 @@ export async function aggregateStudentStats(
     const average_score = info.scores.length ? info.scores.reduce((a, b) => a + b, 0) / info.scores.length : 0;
     const average_confidence = info.confidences.length ? info.confidences.reduce((a, b) => a + b, 0) / info.confidences.length : 0;
     const completion_rate = assigned ? info.scores.length / assigned : 0;
-    const chart_url = await chartFn(studentId, info.points, safeTimestamp);
+    const sortedPoints = [...info.points].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+    const chart_url = info.points.length
+      ? await chartFn(studentId, sortedPoints, safeTimestamp)
+      : '';
     students.push({ student_id: studentId, average_score, average_confidence, completion_rate, chart_url });
   }
 
