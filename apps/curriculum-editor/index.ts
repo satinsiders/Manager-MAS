@@ -19,6 +19,31 @@ export async function fetchLatestSummary() {
   return students.map((s) => ({ summary: s, summaryText: JSON.stringify(s) }));
 }
 
+export async function getNextCurriculumVersion(
+  student_id: string,
+  client = supabase
+) {
+  const { data: lastApproved } = await client
+    .from('curricula')
+    .select('version')
+    .eq('student_id', student_id)
+    .order('version', { ascending: false })
+    .limit(1);
+
+  const { data: lastDraft } = await client
+    .from('curricula_drafts')
+    .select('version')
+    .eq('student_id', student_id)
+    .order('version', { ascending: false })
+    .limit(1);
+
+  const maxVersion = Math.max(
+    lastApproved && lastApproved.length > 0 ? lastApproved[0].version : 0,
+    lastDraft && lastDraft.length > 0 ? lastDraft[0].version : 0
+  );
+  return maxVersion + 1;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     // 1. Load performance summaries from Supabase storage
@@ -57,23 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       // 4. Determine next curriculum version for the student
-      const { data: lastApproved } = await supabase
-        .from('curricula')
-        .select('version')
-        .eq('student_id', student_id)
-        .order('version', { ascending: false })
-        .limit(1);
-      const { data: lastDraft } = await supabase
-        .from('curricula_drafts')
-        .select('version')
-        .eq('student_id', student_id)
-        .order('version', { ascending: false })
-        .limit(1);
-      const maxVersion = Math.max(
-        lastApproved && lastApproved.length > 0 ? lastApproved[0].version : 0,
-        lastDraft && lastDraft.length > 0 ? lastDraft[0].version : 0
-      );
-      const newVersion = maxVersion + 1;
+      const newVersion = await getNextCurriculumVersion(student_id);
 
       const curriculum = {
         version: newVersion,
