@@ -10,6 +10,8 @@ process.env.UPSTASH_REDIS_REST_URL = 'http://localhost';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
 process.env.ORCHESTRATOR_SECRET = 'secret';
 process.env.SUPERFASTSAT_API_URL = 'http://localhost';
+process.env.ORCHESTRATOR_URL = 'http://localhost';
+process.env.SCHEDULER_SECRET = 'sched-secret';
 
 (async () => {
   // start mock server
