@@ -49,8 +49,7 @@ const DAILY_STEPS: StepDescriptor<
 
 const WEEKLY_STEPS: StepDescriptor<void>[] = [
   { url: DATA_AGGREGATOR_URL, label: 'data-aggregator', buildBody: () => undefined },
-  { url: CURRICULUM_EDITOR_URL, label: 'curriculum-editor', buildBody: () => undefined },
-  { url: QA_FORMATTER_URL, label: 'qa-formatter', buildBody: () => undefined }
+  { url: CURRICULUM_EDITOR_URL, label: 'curriculum-editor', buildBody: () => undefined }
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -130,6 +129,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           3,
           'orchestrator_log'
         );
+      }
+
+      const { data: drafts } = await supabase
+        .from('curricula_drafts')
+        .select('student_id, version, curriculum, qa_user');
+
+      for (const draft of drafts ?? []) {
+        const resp = await callWithRetry(
+          QA_FORMATTER_URL,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              curriculum: draft.curriculum,
+              qa_user: draft.qa_user
+            })
+          },
+          runType,
+          `qa-formatter:${draft.student_id}:${draft.version}`,
+          3,
+          'orchestrator_log'
+        );
+
+        if (resp) {
+          try {
+            await supabase
+              .from('curricula_drafts')
+              .delete()
+              .eq('student_id', draft.student_id)
+              .eq('version', draft.version);
+          } catch {
+            /* ignore */
+          }
+        }
       }
     }
     await notify(`Orchestrator ${runType} run succeeded`, 'orchestrator');
