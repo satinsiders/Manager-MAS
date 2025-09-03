@@ -2,6 +2,18 @@
 
 SuperfastSAT Multi-Agent System scaffold. This project uses the OpenAI Responses API and the OpenAI SDK.
 
+## Official Description
+
+The system operates with its own teacher account, which is manually paired with a student account on the SuperfastSAT platform. Once linked, the teacher can browse all available curricula from the student's profile, assign curricula that remain hidden until content is explicitly sent, and dispatch units measured in expected minutes to complete. After reviewing correctness and confidence ratings, the teacher decides whether to continue the current curriculum or assign a new one. When a student demonstrates mastery in a question type—typically through perfect accuracy across sufficient practice—the teacher progresses to a different question type.
+
+To support this workflow, the system stores its own records for:
+
+- The studyplan for each student and its version history.
+- Progress through the plan, tracking which question types have been mastered.
+- A dispatch log noting which curricula have been sent for each question type.
+- Daily performance logs capturing correctness and confidence ratings.
+- Approximate scores for diagnostic tests and full-length exams.
+
 ## Structure
 
 - `apps/` – Vercel serverless functions for each agent.
@@ -17,7 +29,7 @@ SuperfastSAT Multi-Agent System scaffold. This project uses the OpenAI Responses
 npm install
 ```
 
-2. Copy `.env.example` to `.env` and fill in credentials for Supabase, Upstash Redis (`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`), OpenAI, Slack, set `CURRICULUM_EDITOR_URL`, `ORCHESTRATOR_URL`, and secrets `ORCHESTRATOR_SECRET` and `SCHEDULER_SECRET`. Optionally adjust `DRAFT_TTL` (seconds for `draft:*` keys).
+2. Copy `.env.example` to `.env` and fill in credentials for Supabase, Upstash Redis (`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`), OpenAI, Slack, set `STUDYPLAN_EDITOR_URL`, `ORCHESTRATOR_URL`, and secrets `ORCHESTRATOR_SECRET` and `SCHEDULER_SECRET`. Optionally adjust `DRAFT_TTL` (seconds for `draft:*` keys).
 
 3. Run type checks:
 
@@ -33,7 +45,7 @@ npm test
 
 ## Notes
 
-Tables `lessons`, `performances`, `assignments` and historical `curricula` are append-only. `students.current_curriculum_version` is mutable.
+Tables `performances`, `assignments`, and historical studyplans (`curricula`) are append-only. The `students.current_curriculum_version` column storing the active studyplan is mutable.
 
 ## API
 
@@ -58,6 +70,6 @@ Environment variables:
 Body parameters:
 
 - `student_id` – UUID of the student
-- `lesson_id` – UUID of the lesson
+- `curriculum_id` – UUID of the curriculum
 - `score` – numeric performance score
 - `confidence_rating` – optional numeric rating representing the student's confidence

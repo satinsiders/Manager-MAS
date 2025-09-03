@@ -3,19 +3,22 @@
 ## 0. Mission
 Provide fully personalized SAT prep.
 
-- Send the most appropriate lesson every day.
+- Send the most appropriate curriculum units every day.
 - Record and visualize learning results in real time.
-- Automatically update the curriculum every week.
+- Automatically update the studyplan every week.
 
 All processes are driven by an LLM-based multi-agent system with observability and version control.
 
+The system maintains a dedicated teacher account that is manually paired with each student on the SuperfastSAT platform. Once linked, the teacher account can interact with the student and manage curriculum delivery.
+
 ## 1. Content Hierarchy & Delivery Flow
 
-- All lessons and curricula live in the SuperfastSAT CMS, which syncs with the LMS.
-- A curriculum contains multiple lessons, each lesson contains multiple units (questions).
+- All curricula live in the SuperfastSAT CMS, which syncs with the LMS.
+- A curriculum contains multiple units (questions).
 - Each unit is tagged with the expected number of minutes needed to solve it.
 - When curricula are assigned to students, they remain hidden until content is explicitly **sent** on the LMS.
-- From the LMS, the Manager MAS assigns the curriculum when necessary and dispatches units within the appropriate curriculum in minute-based volumes. Sending 10 minutes delivers enough units to total that time (e.g., ten 1‑minute questions).
+- From the student's profile, the teacher can browse all available curricula, assign them, and dispatch units within the selected curriculum in minute-based volumes. Sending 10 minutes delivers enough units to total that time (e.g., ten 1‑minute questions). Curriculum titles reflect the question type (e.g., `[information and ideas] > Inferences`).
+- After reviewing average correctness and confidence ratings, the teacher decides whether to keep sending units from the current curriculum or assign a new one. When a student demonstrates mastery in a question type—often 100% correctness across sufficient practice—the teacher advances to a different question type.
 
 ## 2. Agents & One-Sentence Contracts
 
@@ -23,11 +26,10 @@ All processes are driven by an LLM-based multi-agent system with observability a
 |-------|---------|----------------|
 | Scheduler | GitHub Actions cron | Call daily and weekly jobs at the exact time. |
 | Orchestrator | All triggers | Pass context to required sub-agents and manage retries and logging. |
-| Lesson Picker | 07:00 | Select `next_lesson_id` and supplementary problem set for each student using vector similarity and rule filters. |
-| Dispatcher | Immediately after selection | Send lessons and metadata to the SuperfastSAT platform and record in `dispatch_log`. |
-| Performance Recorder | Upon score arrival | Append `{student_id, lesson_id, score, confidence_rating}` to the `performances` table. |
+| Dispatcher | Immediately after selection | Send curriculum units and metadata to the SuperfastSAT platform and record in `dispatch_log`. |
+| Performance Recorder | Upon score arrival | Append `{student_id, curriculum_id, score, confidence_rating}` to the `performances` table. |
 | Data Aggregator | Fri 23:00 | Generate `performance_summary.json` by combining weekly performances and charts. |
-| Curriculum Editor | After aggregation | Produce new `curriculum_v(X+1)` JSON. |
+| Studyplan Editor | After aggregation | Produce new `studyplan_v(X+1)` JSON. |
 | QA & Formatter | Immediately after edit | Validate JSON schema/style and update student pointers to the new version. |
 | Notification Bot | Success/failure hooks | Notify key events via Slack DM. |
 
@@ -37,22 +39,28 @@ All processes are driven by an LLM-based multi-agent system with observability a
 
 | Table | Key Fields | Purpose |
 |-------|------------|---------|
-| `students` | `id, name, timezone, current_curriculum_version, last_lesson_sent, last_lesson_id, preferred_topics` | Manage personalization status |
-| `lessons` | `id, topic, difficulty, asset_url, vector_embedding` | Fixed lesson catalog |
-| `performances` | `id, student_id, lesson_id, score, confidence_rating` | Source data for learning results |
-| `curricula_drafts` | `version, student_id, curriculum json` | Proposed curricula awaiting QA |
-| `curricula` | `version, student_id, curriculum json, qa_user, approved_at` | Approved, version-controlled learning plan |
-| `assignments` | `id, lesson_id, student_id, questions_json, generated_by` | Supplementary problem sets |
-| `dispatch_log` | `id, student_id, lesson_id, sent_at, channel, status` | Operational visibility |
+| `students` | `id, name, timezone, current_studyplan_version, preferred_topics` | Manage personalization status |
+| `performances` | `id, student_id, curriculum_id, score, confidence_rating` | Source data for learning results |
+| `studyplan_drafts` (`curricula_drafts`) | `version, student_id, studyplan_json` | Proposed studyplans awaiting QA |
+| `studyplans` (`curricula`) | `version, student_id, studyplan_json, qa_user, approved_at` | Approved, version-controlled learning plan |
+| `assignments` | `id, curriculum_id, student_id, questions_json, generated_by` | Supplementary problem sets |
+| `dispatch_log` | `id, student_id, curriculum_id, sent_at, channel, status` | Operational visibility |
 
-Immutable rules: `lessons`, `performances`, `assignments`, and past `curricula` can only be appended. Only `students.current_curriculum_version` may be modified.
+Immutable rules: `performances`, `assignments`, and past studyplans can only be appended. Only `students.current_studyplan_version` may be modified.
+
+Beyond platform data, the system separately records:
+
+- The studyplan and its version history for each student.
+- Progress within the plan, tracking mastered question types.
+- Per-question-type dispatch logs and daily performance summaries.
+- Approximate scores for diagnostic tests and full-length exams.
 
 ## 4. Memory Hierarchy (LangGraph variant)
 
 | Level | Storage Location | TTL/Version | Used By |
 |-------|------------------|-------------|---------|
 | Working Memory | Vercel function process object / Redis `draft:*` | Minutes to hours | Orchestrator & current chain |
-| Short-Term Memory | Redis `last_3_scores:{id}` | ≤ 7 days | Lesson Picker & Dispatcher |
+| Short-Term Memory | Redis `last_3_scores:{id}` | ≤ 7 days | Dispatcher |
 | Long-Term Memory | Supabase (PostgreSQL) | Permanent, versioned | All agents |
 | External Evidence | Supabase Storage (or AWS S3), Notion | Permanent | QA & audit |
 
@@ -67,12 +75,11 @@ run completes.
 
 | Agent | READS | WRITES |
 |-------|-------|--------|
-| Lesson Picker | `students`, recent `performances`, `curricula`, `lessons` | `dispatch_log` |
-| Dispatcher | `students`, `lessons`, `dispatch_log` | `dispatch_log(status)` |
+| Dispatcher | `students`, `studyplans`, `dispatch_log` | `dispatch_log(status)` |
 | Performance Recorder | – | `performances` |
 | Data Aggregator | `performances`, `dispatch_log`, charts 📊 | Supabase Storage `performance_summary.json` |
-| Curriculum Editor | `performance_summary`, `lessons` | `curricula_drafts` |
-| QA & Formatter | `curricula_drafts` | `curricula`, `students.current_curriculum_version` |
+| Studyplan Editor | `performance_summary` | `studyplan_drafts` |
+| QA & Formatter | `studyplan_drafts` | `studyplans`, `students.current_studyplan_version` |
 | Notification Bot | Event stream | Slack |
 
 ## 6. Infrastructure Stack (Blueprint 1)
@@ -90,9 +97,9 @@ run completes.
 
 | Week | Goal | Deliverables |
 |------|------|--------------|
-| Week 1 | MVP daily loop | Create tables, lesson picker & dispatcher → test with one student |
+| Week 1 | MVP daily loop | Create tables & dispatcher → test with one student |
 | Week 2 | Performance logging + supplements | Auto record scores, send problem sets to students |
-| Week 3 | Weekly loop | Data aggregator & curriculum editor → produce v2 curriculum |
+| Week 3 | Weekly loop | Data aggregator & studyplan editor → produce v2 studyplan |
 | Week 4 | Hardening | Slack notifications, optional Grafana dashboard, batch process >100 students |
 
 ## 8. Impact Points
@@ -101,5 +108,5 @@ run completes.
 - Immutable, version-controlled data → track educational quality and compliance.
 - Layered memory → enables both fast decision-making and data integrity.
 - Easy to swap LLM modules → immediately reflect cost and performance optimizations.
-- Human gate → only QA-approved curricula are applied to students.
+- Human gate → only QA-approved studyplans are applied to students.
 
