@@ -16,3 +16,4 @@ Additional append-only records support the official workflow:
 - **dispatch_log** – tracks which curricula have been sent for each question type.
 - **performances** – captures daily correctness and confidence ratings, including approximate scores for tests and exams.
 - **studyplans (`curricula`)** – stores the studyplan and its versions, allowing progress tracking as question types are mastered.
+- **student_progress** – mutable table recording whether each question type has been mastered per student.

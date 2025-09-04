@@ -9,7 +9,7 @@ The system operates with its own teacher account, which is manually paired with 
 To support this workflow, the system stores its own records for:
 
 - The studyplan for each student and its version history.
-- Progress through the plan, tracking which question types have been mastered.
+- Progress through the plan, tracking which question types have been mastered in the `student_progress` table.
 - A dispatch log noting which curricula have been sent for each question type.
 - Daily performance logs capturing correctness and confidence ratings.
 - Approximate scores for diagnostic tests and full-length exams.
@@ -71,5 +71,10 @@ Body parameters:
 
 - `student_id` – UUID of the student
 - `curriculum_id` – UUID of the curriculum
+- `question_type` – category of the question answered
 - `score` – numeric performance score
 - `confidence_rating` – optional numeric rating representing the student's confidence
+
+After each submission, the service calculates running correctness for the given
+`question_type` and marks it as mastered in the `student_progress` table once at
+least five attempts have been recorded with perfect accuracy.

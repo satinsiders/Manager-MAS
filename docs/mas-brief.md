@@ -45,6 +45,7 @@ The system maintains a dedicated teacher account that is manually paired with ea
 | `studyplans` (`curricula`) | `version, student_id, studyplan_json, qa_user, approved_at` | Approved, version-controlled learning plan |
 | `assignments` | `id, curriculum_id, student_id, questions_json, generated_by` | Supplementary problem sets |
 | `dispatch_log` | `id, student_id, curriculum_id, sent_at, channel, status` | Operational visibility |
+| `student_progress` | `student_id, question_type, mastered, last_updated` | Tracks mastery status by question type |
 
 Immutable rules: `performances`, `assignments`, and past studyplans can only be appended. Only `students.current_studyplan_version` may be modified.
 
@@ -52,6 +53,7 @@ Beyond platform data, the system separately records:
 
 - The studyplan and its version history for each student.
 - Progress within the plan, tracking mastered question types.
+  This status is stored in the `student_progress` table.
 - Per-question-type dispatch logs and daily performance summaries.
 - Approximate scores for diagnostic tests and full-length exams.
 
@@ -76,7 +78,7 @@ run completes.
 | Agent | READS | WRITES |
 |-------|-------|--------|
 | Dispatcher | `students`, `studyplans`, `dispatch_log` | `dispatch_log(status)` |
-| Performance Recorder | – | `performances` |
+| Performance Recorder | `performances` | `performances`, `student_progress` |
 | Data Aggregator | `performances`, `dispatch_log`, charts 📊 | Supabase Storage `performance_summary.json` |
 | Studyplan Editor | `performance_summary` | `studyplan_drafts` |
 | QA & Formatter | `studyplan_drafts` | `studyplans`, `students.current_studyplan_version` |

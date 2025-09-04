@@ -31,12 +31,14 @@ export default async function handler(
   res: VercelResponse,
   client = redis,
 ) {
-  const { student_id, lesson_id, score, confidence_rating } = req.body as {
-    student_id: string;
-    lesson_id: string;
-    score: number;
-    confidence_rating?: number;
-  };
+  const { student_id, lesson_id, question_type, score, confidence_rating } =
+    req.body as {
+      student_id: string;
+      lesson_id: string;
+      question_type: string;
+      score: number;
+      confidence_rating?: number;
+    };
   try {
     const { supabase } = await import('../../packages/shared/supabase');
     const { data } = await supabase
@@ -44,6 +46,7 @@ export default async function handler(
       .insert({
         student_id,
         lesson_id,
+        question_type,
         score,
         confidence_rating: confidence_rating ?? null,
       })
@@ -51,6 +54,24 @@ export default async function handler(
       .single();
 
     await updateLastScores(student_id, score, client);
+
+    const { data: attempts } = await supabase
+      .from('performances')
+      .select('score')
+      .eq('student_id', student_id)
+      .eq('question_type', question_type)
+      .order('timestamp', { ascending: false })
+      .limit(5);
+
+    const attemptCount = attempts?.length ?? 0;
+    const correctCount = attempts?.filter((a: any) => a.score === 1).length ?? 0;
+
+    if (attemptCount >= 5 && correctCount === attemptCount) {
+      const { updateProgress } = await import(
+        '../../packages/shared/progress'
+      );
+      await updateProgress(student_id, question_type, true);
+    }
 
     res.status(200).json({ id: data?.id });
   } catch (err:any) {

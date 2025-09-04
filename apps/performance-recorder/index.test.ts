@@ -32,17 +32,60 @@ class MockRedis {
   const { supabase } = await import('../../packages/shared/supabase');
 
   let inserted: any = null;
-  (supabase as any).from = (_table: string) => ({
-    insert(fields: any) {
-      inserted = fields;
-      return { select: () => ({ single: async () => ({ data: { id: '1' } }) }) };
-    },
-  });
+  let progressUpsert: any = null;
+  (supabase as any).from = (table: string) => {
+    if (table === 'performances') {
+      return {
+        insert(fields: any) {
+          inserted = fields;
+          return {
+            select: () => ({ single: async () => ({ data: { id: '1' } }) }),
+          };
+        },
+        select() {
+          return {
+            eq() {
+              return this;
+            },
+            order() {
+              return this;
+            },
+            limit() {
+              return Promise.resolve({
+                data: [
+                  { score: 1 },
+                  { score: 1 },
+                  { score: 1 },
+                  { score: 1 },
+                  { score: 1 },
+                ],
+              });
+            },
+          };
+        },
+      };
+    }
+    if (table === 'student_progress') {
+      return {
+        upsert(fields: any) {
+          progressUpsert = fields;
+          return Promise.resolve();
+        },
+      };
+    }
+    return {} as any;
+  };
 
   const mockRedis = new MockRedis();
 
   const req = {
-    body: { student_id: 's1', lesson_id: 'l1', score: 80, confidence_rating: 0.9 },
+    body: {
+      student_id: 's1',
+      lesson_id: 'l1',
+      question_type: 'qt1',
+      score: 1,
+      confidence_rating: 0.9,
+    },
   } as any;
   const res: any = { status() { return { json() {} }; } };
 
@@ -51,7 +94,8 @@ class MockRedis {
   assert.deepStrictEqual(inserted, {
     student_id: 's1',
     lesson_id: 'l1',
-    score: 80,
+    question_type: 'qt1',
+    score: 1,
     confidence_rating: 0.9,
   });
   assert.deepStrictEqual(mockRedis.lastExpire, [
@@ -59,5 +103,9 @@ class MockRedis {
     LAST_SCORES_TTL,
   ]);
 
-  console.log('Performance recorded and TTL set');
+  assert.strictEqual(progressUpsert.student_id, 's1');
+  assert.strictEqual(progressUpsert.question_type, 'qt1');
+  assert.strictEqual(progressUpsert.mastered, true);
+
+  console.log('Performance recorded, TTL set, and progress updated');
 })();
