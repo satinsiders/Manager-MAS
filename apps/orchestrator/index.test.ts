@@ -17,6 +17,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   // start mock server
   let dispatcherBody: any = null;
   let lessonPickerBody: any = null;
+  let curriculumBody: any = null;
   let lessonPickerResp: any = { minutes: 5, next_lesson_id: 'l42' };
   const qaBodies: any[] = [];
   let qaStatus = 200;
@@ -30,6 +31,10 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
         res.end(JSON.stringify(lessonPickerResp));
       } else if (req.url === '/dispatcher') {
         dispatcherBody = body ? JSON.parse(body) : null;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end('{}');
+      } else if (req.url === '/mod') {
+        curriculumBody = body ? JSON.parse(body) : null;
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end('{}');
       } else if (req.url === '/qa') {
@@ -148,6 +153,15 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   assert.deepEqual(mockRedis.store, {});
   assert.deepEqual(dispatcherBody.units, [{ id: 'u1' }]);
   assert.equal(dispatcherBody.minutes, undefined);
+
+  // lesson picker requests new curriculum
+  dispatcherBody = null;
+  curriculumBody = null;
+  lessonPickerResp = { action: 'request_new_curriculum' };
+  await handler(req, res);
+  assert.equal(status, 200);
+  assert.equal(curriculumBody.student_id, 1);
+  assert.equal(dispatcherBody, null);
 
   // failure during orchestration should also clean drafts
   dispatcherBody = null;

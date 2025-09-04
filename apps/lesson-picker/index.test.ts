@@ -25,6 +25,7 @@ class MockRedis {
 }
 
 let rpcArgs: any = null;
+let progressRows: any[] = [];
 
 function baseFrom(table: string) {
   if (table === 'students') {
@@ -57,7 +58,19 @@ function baseFrom(table: string) {
                     data: {
                       curriculum: {
                         lessons: [
-                          { id: 'l3', units: [{ id: 'u1', duration_minutes: 5 }] }
+                          {
+                            id: 'l3',
+                            units: [
+                              { id: 'u1', duration_minutes: 5, question_type: 'geometry' },
+                              { id: 'u2', duration_minutes: 6, question_type: 'algebra' }
+                            ]
+                          },
+                          {
+                            id: 'l2',
+                            units: [
+                              { id: 'u3', duration_minutes: 4, question_type: 'algebra' }
+                            ]
+                          }
                         ]
                       }
                     }
@@ -77,6 +90,21 @@ function baseFrom(table: string) {
           eq() {
             return {
               eq: () => ({ data: [] })
+            };
+          }
+        };
+      }
+    };
+  }
+  if (table === 'student_progress') {
+    return {
+      select() {
+        return {
+          eq() {
+            return {
+              eq() {
+                return { data: progressRows };
+              }
             };
           }
         };
@@ -175,10 +203,25 @@ function createSupabaseWithAssignments(onInsert: (fields: any) => Promise<void>)
                           id: 'a1',
                           lesson_id: 'l3',
                           duration_minutes: 12,
-                          questions_json: [{ prompt: 'Q1' }]
+                          questions_json: [{ prompt: 'Q1', question_type: 'history' }]
                         }
                       ]
                     };
+                  }
+                };
+              }
+            };
+          }
+        };
+      }
+      if (table === 'student_progress') {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  eq() {
+                    return { data: progressRows };
                   }
                 };
               }
@@ -219,6 +262,7 @@ class MockOpenAI {
   const supabase = createSupabase(async (fields: any) => {
     inserted = fields;
   });
+  progressRows = [];
   const result = await selectNextLesson('student1', 2, {
     redis: new MockRedis() as any,
     supabase: supabase as any,
@@ -241,6 +285,7 @@ class MockOpenAI {
     attempted = true;
     throw new Error('insert failed');
   });
+  progressRows = [];
   const result2 = await selectNextLesson('student1', 2, {
     redis: new MockRedis() as any,
     supabase: failingSupabase as any,
@@ -251,18 +296,20 @@ class MockOpenAI {
 
   // Assignments fallback includes duration_minutes and questions
   const supabaseAssign = createSupabaseWithAssignments(async () => {});
-  const result3 = await selectNextLesson('student1', 2, {
+  progressRows = [];
+  const result3 = (await selectNextLesson('student1', 2, {
     redis: new MockRedis() as any,
     supabase: supabaseAssign as any,
     openai: new MockOpenAI() as any
-  });
+  })) as any;
   assert.equal(result3.units[0].id, 'a1');
   assert.equal(result3.units[0].duration_minutes, 12);
-  assert.deepEqual(result3.units[0].questions, [{ prompt: 'Q1' }]);
+  assert.deepEqual(result3.units[0].questions, [{ prompt: 'Q1', question_type: 'history' }]);
 
   // Rule filters: avoid repeating same topic
   const supabaseRules = createSupabase(async () => {});
   const avoidGeometry = (lesson: any) => lesson.topic !== 'geometry';
+  progressRows = [];
   const result4 = await selectNextLesson('student1', 2, {
     redis: new MockRedis() as any,
     supabase: supabaseRules as any,
@@ -272,12 +319,35 @@ class MockOpenAI {
 
   // Rule filters: limit difficulty jumps
   const limitJump = (lesson: any) => Math.abs(lesson.difficulty - 1) <= 1;
+  progressRows = [];
   const result5 = await selectNextLesson('student1', 2, {
     redis: new MockRedis() as any,
     supabase: supabaseRules as any,
     openai: new MockOpenAI() as any,
   }, [limitJump]);
   assert.equal(result5.next_lesson_id, 'l2');
+
+  // Mastery filtering
+  progressRows = [{ question_type: 'geometry' }];
+  const result6 = (await selectNextLesson('student1', 2, {
+    redis: new MockRedis() as any,
+    supabase: supabase as any,
+    openai: new MockOpenAI() as any
+  })) as any;
+  assert.equal(result6.units.length, 1);
+  assert.equal(result6.units[0].question_type, 'algebra');
+
+  // Request new curriculum when all units mastered
+  progressRows = [
+    { question_type: 'geometry' },
+    { question_type: 'algebra' }
+  ];
+  const result7 = await selectNextLesson('student1', 2, {
+    redis: new MockRedis() as any,
+    supabase: supabase as any,
+    openai: new MockOpenAI() as any
+  });
+  assert.equal(result7.action, 'request_new_curriculum');
 
   console.log('Lesson picker dispatch log tests passed');
 })();
