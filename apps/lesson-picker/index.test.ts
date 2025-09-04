@@ -9,7 +9,7 @@ process.env.NOTIFICATION_BOT_URL = 'http://example.com';
 process.env.LESSON_PICKER_URL = 'http://example.com';
 process.env.DISPATCHER_URL = 'http://example.com';
 process.env.DATA_AGGREGATOR_URL = 'http://example.com';
-process.env.CURRICULUM_EDITOR_URL = 'http://example.com';
+process.env.STUDYPLAN_EDITOR_URL = 'http://example.com';
 process.env.QA_FORMATTER_URL = 'http://example.com';
 process.env.UPSTASH_REDIS_REST_URL = 'http://example.com';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
@@ -45,7 +45,7 @@ function baseFrom(table: string) {
       }
     };
   }
-  if (table === 'curricula') {
+  if (table === 'studyplans') {
     return {
       select() {
         return {
@@ -55,7 +55,7 @@ function baseFrom(table: string) {
                 return {
                   single: async () => ({
                     data: {
-                      curriculum: {
+                      studyplan: {
                         lessons: [
                           { id: 'l3', units: [{ id: 'u1', duration_minutes: 5 }] }
                         ]
@@ -141,7 +141,7 @@ function createSupabaseWithAssignments(onInsert: (fields: any) => Promise<void>)
           }
         };
       }
-      if (table === 'curricula') {
+      if (table === 'studyplans') {
         return {
           select() {
             return {
@@ -151,7 +151,7 @@ function createSupabaseWithAssignments(onInsert: (fields: any) => Promise<void>)
                     return {
                       single: async () => ({
                         data: {
-                          curriculum: { lessons: [] }
+                          studyplan: { lessons: [] }
                         }
                       })
                     };

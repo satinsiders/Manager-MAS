@@ -40,12 +40,12 @@ const agents: AgentSpec[] = [
       'Generate `performance_summary.json` by combining weekly performances and charts.'
   },
   {
-    name: 'Curriculum Editor',
-    instructions: 'Produce new `curriculum_v(X+1)` JSON.'
+    name: 'Studyplan Editor',
+    instructions: 'Produce new `studyplan_v(X+1)` JSON.'
   },
   {
     name: 'QA & Formatter',
-    instructions: 'Validate curriculum JSON schema and style then update student pointers to the new version.'
+    instructions: 'Validate studyplan JSON schema and style then update student pointers to the new version.'
   },
   {
     name: 'Notification Bot',

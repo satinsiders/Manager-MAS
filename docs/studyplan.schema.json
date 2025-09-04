@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Curriculum",
+  "title": "Studyplan",
   "type": "object",
   "required": ["version", "student_id", "lessons", "notes"],
   "properties": {

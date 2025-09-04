@@ -4,8 +4,8 @@ The database uses row level security (RLS) on all tables. Select access is allow
 
 - **performances** – insert only, no updates or deletes.
 - **assignments** – insert only, no updates or deletes.
-- **studyplans (`curricula`)** – versioned history, insert only.
- - **studyplan_drafts (`curricula_drafts`)** – mutable staging table for proposed studyplans.
+- **studyplans** – versioned history, insert only.
+- **studyplan_drafts** – mutable staging table for proposed studyplans.
 
 Foreign key relations use `ON DELETE RESTRICT` to prevent accidental cascades. Triggers on the append-only tables raise exceptions if an update or delete is attempted.
 
@@ -15,4 +15,4 @@ Additional append-only records support the official workflow:
 
 - **dispatch_log** – tracks which curricula have been sent for each question type.
 - **performances** – captures daily correctness and confidence ratings, including approximate scores for tests and exams.
-- **studyplans (`curricula`)** – stores the studyplan and its versions, allowing progress tracking as question types are mastered.
+- **studyplans** – stores the studyplan and its versions, allowing progress tracking as question types are mastered.

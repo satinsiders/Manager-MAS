@@ -9,7 +9,7 @@ process.env.NOTIFICATION_BOT_URL = 'http://example.com';
 process.env.LESSON_PICKER_URL = 'http://example.com';
 process.env.DISPATCHER_URL = 'http://example.com';
 process.env.DATA_AGGREGATOR_URL = 'http://example.com';
-process.env.CURRICULUM_EDITOR_URL = 'http://example.com';
+process.env.STUDYPLAN_EDITOR_URL = 'http://example.com';
 process.env.QA_FORMATTER_URL = 'http://example.com';
 process.env.UPSTASH_REDIS_REST_URL = 'http://example.com';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
@@ -22,14 +22,14 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   // Stub network and database interactions used by notify
   const supabaseModule = await import('../../packages/shared/supabase');
   const supabase = supabaseModule.supabase as any;
-  let draftCurriculum: any = null;
+  let draftStudyplan: any = null;
   supabase.from = (table: string) => {
-    if (table === 'curricula_drafts') {
+    if (table === 'studyplan_drafts') {
       return {
         select: () => ({
           eq: () => ({
             eq: () => ({
-              single: async () => ({ data: { curriculum: draftCurriculum } })
+              single: async () => ({ data: { studyplan: draftStudyplan } })
             })
           })
         }),
@@ -40,7 +40,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
         })
       };
     }
-    if (table === 'curricula') {
+    if (table === 'studyplans') {
       return { insert: async () => ({}) };
     }
     if (table === 'students') {
@@ -65,7 +65,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
     };
   }
 
-  const baseCurriculum = {
+  const baseStudyplan = {
     version: 1,
     student_id: '123e4567-e89b-12d3-a456-426614174000',
     notes: 'some notes',
@@ -81,39 +81,39 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   };
 
   // Duplicate unit IDs should trigger validation error
-  const dupCurriculum = JSON.parse(JSON.stringify(baseCurriculum));
-  dupCurriculum.lessons[0].units[1].id = dupCurriculum.lessons[0].units[0].id;
-  draftCurriculum = dupCurriculum;
+  const dupStudyplan = JSON.parse(JSON.stringify(baseStudyplan));
+  dupStudyplan.lessons[0].units[1].id = dupStudyplan.lessons[0].units[0].id;
+  draftStudyplan = dupStudyplan;
   const res1 = createRes();
   await handler(
     {
       body: {
-        student_id: baseCurriculum.student_id,
-        version: baseCurriculum.version,
+        student_id: baseStudyplan.student_id,
+        version: baseStudyplan.version,
         qa_user: 'tester'
       }
     } as any,
     res1 as any
   );
   assert.equal(res1.statusCode, 400);
-  assert.deepEqual(res1.body, { error: 'invalid curriculum' });
+  assert.deepEqual(res1.body, { error: 'invalid studyplan' });
 
   // Missing duration_minutes should also trigger validation error
-  const missingCurriculum = JSON.parse(JSON.stringify(baseCurriculum));
-  delete (missingCurriculum.lessons[0].units[1] as any).duration_minutes;
-  draftCurriculum = missingCurriculum;
+  const missingStudyplan = JSON.parse(JSON.stringify(baseStudyplan));
+  delete (missingStudyplan.lessons[0].units[1] as any).duration_minutes;
+  draftStudyplan = missingStudyplan;
   const res2 = createRes();
   await handler(
     {
       body: {
-        student_id: baseCurriculum.student_id,
-        version: baseCurriculum.version,
+        student_id: baseStudyplan.student_id,
+        version: baseStudyplan.version,
         qa_user: 'tester'
       }
     } as any,
     res2 as any
   );
   assert.equal(res2.statusCode, 400);
-  assert.deepEqual(res2.body, { error: 'invalid curriculum' });
+  assert.deepEqual(res2.body, { error: 'invalid studyplan' });
   supabase.from = () => ({ insert: async () => ({}), update: async () => ({}) });
 })();

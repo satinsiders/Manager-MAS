@@ -51,7 +51,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   process.env.DISPATCHER_URL = `${base}/dispatcher`;
   process.env.NOTIFICATION_BOT_URL = `${base}/notify`;
   process.env.DATA_AGGREGATOR_URL = `${base}/agg`;
-  process.env.CURRICULUM_EDITOR_URL = `${base}/mod`;
+  process.env.STUDYPLAN_EDITOR_URL = `${base}/mod`;
   process.env.QA_FORMATTER_URL = `${base}/qa`;
 
     class MockRedis {
@@ -82,10 +82,10 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   (supabase as any).from = (table: string) => {
     if (table === 'students') {
       return {
-        select: () => ({ eq: () => ({ data: [{ id: 1, current_curriculum_version: 2 }] }) })
+        select: () => ({ eq: () => ({ data: [{ id: 1, current_studyplan_version: 2 }] }) })
       };
     }
-    if (table === 'curricula_drafts') {
+    if (table === 'studyplan_drafts') {
       return {
         select: () => ({ data: drafts }),
         delete: () => ({
@@ -137,7 +137,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   assert.equal(dispatcherBody.student_id, 1);
   assert.equal(dispatcherBody.minutes, 5);
   assert.equal(dispatcherBody.next_lesson_id, 'l42');
-  assert.equal(lessonPickerBody.curriculum_version, 2);
+  assert.equal(lessonPickerBody.studyplan_version, 2);
 
   // authorized request - units present
   dispatcherBody = null;

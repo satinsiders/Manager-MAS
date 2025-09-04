@@ -45,7 +45,7 @@ npm test
 
 ## Notes
 
-Tables `performances`, `assignments`, and historical studyplans (`curricula`) are append-only. The `students.current_curriculum_version` column storing the active studyplan is mutable.
+Tables `performances`, `assignments`, and historical studyplans are append-only. The `students.current_studyplan_version` column storing the active studyplan is mutable.
 
 ## API
 

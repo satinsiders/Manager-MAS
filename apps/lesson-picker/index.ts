@@ -24,7 +24,7 @@ type RuleFilter = (lesson: Lesson) => boolean;
 
 export async function selectNextLesson(
   student_id: string,
-  curriculum_version?: number,
+  studyplan_version?: number,
   clients = { redis, supabase, openai },
   ruleFilters: RuleFilter[] = [],
 ) {
@@ -108,16 +108,16 @@ export async function selectNextLesson(
     console.error('dispatch_log insert failed', err);
   }
 
-  // Attempt to gather units for the chosen lesson from curriculum
+  // Attempt to gather units for the chosen lesson from the studyplan
   let units: any[] = [];
-  if (curriculum_version !== undefined) {
+  if (studyplan_version !== undefined) {
     const { data: curr } = await s
-      .from('curricula')
-      .select('curriculum')
+      .from('studyplans')
+      .select('studyplan')
       .eq('student_id', student_id)
-      .eq('version', curriculum_version)
+      .eq('version', studyplan_version)
       .single();
-    const lesson = curr?.curriculum?.lessons?.find(
+    const lesson = curr?.studyplan?.lessons?.find(
       (l: any) => l.id === next.id
     );
     if (lesson?.units) {
@@ -125,7 +125,7 @@ export async function selectNextLesson(
     }
   }
 
-  // Fallback to assignments if no curriculum units found
+  // Fallback to assignments if no studyplan units found
   if (units.length === 0) {
     const { data: assigns } = await s
       .from('assignments')
@@ -145,12 +145,12 @@ export async function selectNextLesson(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { student_id, curriculum_version } = req.body as {
+  const { student_id, studyplan_version } = req.body as {
     student_id: string;
-    curriculum_version?: number;
+    studyplan_version?: number;
   };
   try {
-    const result = await selectNextLesson(student_id, curriculum_version);
+    const result = await selectNextLesson(student_id, studyplan_version);
     res.status(200).json(result);
   } catch (err: any) {
     console.error(err);

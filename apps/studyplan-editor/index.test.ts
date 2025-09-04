@@ -9,7 +9,7 @@ process.env.NOTIFICATION_BOT_URL = 'http://example.com';
 process.env.LESSON_PICKER_URL = 'http://example.com';
 process.env.DISPATCHER_URL = 'http://example.com';
 process.env.DATA_AGGREGATOR_URL = 'http://example.com';
-process.env.CURRICULUM_EDITOR_URL = 'http://example.com';
+process.env.STUDYPLAN_EDITOR_URL = 'http://example.com';
 process.env.QA_FORMATTER_URL = 'http://example.com';
 process.env.UPSTASH_REDIS_REST_URL = 'http://example.com';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
@@ -67,7 +67,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
 })();
 
 (async () => {
-  const { getNextCurriculumVersion } = await import('./index');
+  const { getNextStudyplanVersion } = await import('./index');
   const mockClient = {
     from: (table: string) => ({
       select: () => ({
@@ -75,9 +75,9 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
           order: () => ({
             limit: async () => ({
               data:
-                table === 'curricula'
+                table === 'studyplans'
                   ? [{ version: 2 }]
-                  : table === 'curricula_drafts'
+                  : table === 'studyplan_drafts'
                   ? [{ version: 3 }]
                   : [],
             }),
@@ -87,6 +87,6 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
     }),
   } as any;
 
-  const next = await getNextCurriculumVersion('student', mockClient);
+  const next = await getNextStudyplanVersion('student', mockClient);
   assert.equal(next, 4);
 })();

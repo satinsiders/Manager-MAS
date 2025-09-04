@@ -11,6 +11,8 @@ All processes are driven by an LLM-based multi-agent system with observability a
 
 The system maintains a dedicated teacher account that is manually paired with each student on the SuperfastSAT platform. Once linked, the teacher account can interact with the student and manage curriculum delivery.
 
+**Terminology:** Within this project, **studyplan** refers to the personalized, versioned plan managed by the agents. The word **curriculum** is reserved for the content packages on the SuperfastSAT platform and is left unchanged when referring to those units.
+
 ## 1. Content Hierarchy & Delivery Flow
 
 - All curricula live in the SuperfastSAT CMS, which syncs with the LMS.
@@ -41,8 +43,8 @@ The system maintains a dedicated teacher account that is manually paired with ea
 |-------|------------|---------|
 | `students` | `id, name, timezone, current_studyplan_version, preferred_topics` | Manage personalization status |
 | `performances` | `id, student_id, curriculum_id, score, confidence_rating` | Source data for learning results |
-| `studyplan_drafts` (`curricula_drafts`) | `version, student_id, studyplan_json` | Proposed studyplans awaiting QA |
-| `studyplans` (`curricula`) | `version, student_id, studyplan_json, qa_user, approved_at` | Approved, version-controlled learning plan |
+| `studyplan_drafts` | `version, student_id, studyplan` | Proposed studyplans awaiting QA |
+| `studyplans` | `version, student_id, studyplan, qa_user, approved_at` | Approved, version-controlled learning plan |
 | `assignments` | `id, curriculum_id, student_id, questions_json, generated_by` | Supplementary problem sets |
 | `dispatch_log` | `id, student_id, curriculum_id, sent_at, channel, status` | Operational visibility |
 

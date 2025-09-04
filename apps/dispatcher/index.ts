@@ -2,9 +2,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from '../../packages/shared/supabase';
 import { SUPERFASTSAT_API_URL } from '../../packages/shared/config';
 
-export async function selectUnits(curriculum: any, minutes: number) {
+export async function selectUnits(studyplan: any, minutes: number) {
   const flat: { unit: any; lessonId: string; duration: number }[] = [];
-  for (const lesson of curriculum.lessons ?? []) {
+  for (const lesson of studyplan.lessons ?? []) {
     for (const unit of lesson.units ?? []) {
       flat.push({
         unit,
@@ -75,22 +75,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!presetUnits) {
       const { data: student } = await supabase
         .from('students')
-        .select('current_curriculum_version')
+        .select('current_studyplan_version')
         .eq('id', student_id)
         .single();
 
       if (!student) throw new Error('student not found');
 
       const { data: curr } = await supabase
-        .from('curricula')
-        .select('curriculum')
+        .from('studyplans')
+        .select('studyplan')
         .eq('student_id', student_id)
-        .eq('version', student.current_curriculum_version)
+        .eq('version', student.current_studyplan_version)
         .single();
 
-      if (!curr) throw new Error('curriculum not found');
+      if (!curr) throw new Error('studyplan not found');
 
-      selected = await selectUnits(curr.curriculum, minutes);
+      selected = await selectUnits(curr.studyplan, minutes);
     } else {
       selected.total = presetUnits.reduce(
         (sum, u: any) => sum + (Number(u.duration_minutes) || 0),

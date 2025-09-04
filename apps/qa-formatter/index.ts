@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Ajv from 'ajv';
 import addKeywords from 'ajv-keywords';
 import addFormats from 'ajv-formats';
-import schema from '../../docs/curriculum.schema.json';
+import schema from '../../docs/studyplan.schema.json';
 import { supabase } from '../../packages/shared/supabase';
 import { notify } from '../../packages/shared/notify';
 const ajv = new Ajv({ allErrors: true });
@@ -10,17 +10,17 @@ addFormats(ajv);
 addKeywords(ajv, ['uniqueItemProperties']);
 const validate = ajv.compile(schema);
 
-function enforceStyle(curriculum: any) {
-  if (typeof curriculum.notes === 'string') {
-    let notes = curriculum.notes.trim();
+function enforceStyle(studyplan: any) {
+  if (typeof studyplan.notes === 'string') {
+    let notes = studyplan.notes.trim();
     if (notes) {
       notes = notes.charAt(0).toUpperCase() + notes.slice(1);
       if (!notes.endsWith('.')) notes += '.';
-      curriculum.notes = notes;
+      studyplan.notes = notes;
     }
   }
-  if (Array.isArray(curriculum.lessons)) {
-    for (const lesson of curriculum.lessons) {
+  if (Array.isArray(studyplan.lessons)) {
+    for (const lesson of studyplan.lessons) {
       if (Array.isArray(lesson.units)) {
         const seen = new Set<string>();
         lesson.units = lesson.units.map((unit: any) => {
@@ -52,49 +52,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } = req.body as { student_id: string; version: number; qa_user: string };
   try {
     const { data: draft } = await supabase
-      .from('curricula_drafts')
-      .select('curriculum')
+      .from('studyplan_drafts')
+      .select('studyplan')
       .eq('student_id', student_id)
       .eq('version', version)
       .single();
 
-    const curriculum = draft?.curriculum;
-    if (!curriculum) {
+    const studyplan = draft?.studyplan;
+    if (!studyplan) {
       res.status(404).json({ error: 'draft not found' });
       return;
     }
 
-    if (!validate(curriculum)) {
-      const message = `Curriculum validation failed: ${ajv.errorsText(validate.errors)}`;
+    if (!validate(studyplan)) {
+      const message = `Studyplan validation failed: ${ajv.errorsText(validate.errors)}`;
       await notify(message, 'qa-formatter');
-      res.status(400).json({ error: 'invalid curriculum' });
+      res.status(400).json({ error: 'invalid studyplan' });
       return;
     }
 
     try {
-      enforceStyle(curriculum);
+      enforceStyle(studyplan);
     } catch (err: any) {
-      const message = `Curriculum validation failed: ${err.message}`;
+      const message = `Studyplan validation failed: ${err.message}`;
       await notify(message, 'qa-formatter');
-      res.status(400).json({ error: 'invalid curriculum' });
+      res.status(400).json({ error: 'invalid studyplan' });
       return;
     }
 
-    await supabase.from('curricula').insert({
+    await supabase.from('studyplans').insert({
       version,
       student_id,
-      curriculum,
+      studyplan,
       qa_user,
       approved_at: new Date().toISOString()
     });
 
     await supabase
       .from('students')
-      .update({ current_curriculum_version: version })
+      .update({ current_studyplan_version: version })
       .eq('id', student_id);
 
     await supabase
-      .from('curricula_drafts')
+      .from('studyplan_drafts')
       .delete()
       .eq('student_id', student_id)
       .eq('version', version);

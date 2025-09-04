@@ -17,7 +17,7 @@ export async function fetchLatestSummary() {
     try {
       parsed = JSON.parse(rawText);
     } catch {
-      await notify('Failed to parse latest summary', 'curriculum-editor');
+      await notify('Failed to parse latest summary', 'studyplan-editor');
       return [];
     }
     const students: any[] = Array.isArray(parsed.students) ? parsed.students : [];
@@ -27,19 +27,19 @@ export async function fetchLatestSummary() {
   }
 }
 
-export async function getNextCurriculumVersion(
+export async function getNextStudyplanVersion(
   student_id: string,
   client = supabase
 ) {
   const { data: lastApproved } = await client
-    .from('curricula')
+    .from('studyplans')
     .select('version')
     .eq('student_id', student_id)
     .order('version', { ascending: false })
     .limit(1);
 
   const { data: lastDraft } = await client
-    .from('curricula_drafts')
+    .from('studyplan_drafts')
     .select('version')
     .eq('student_id', student_id)
     .order('version', { ascending: false })
@@ -70,9 +70,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const { summary, summaryText } of summaries) {
       const student_id = summary.student_id || 'demo';
 
-      // 3. Ask OpenAI to propose a new curriculum structure
+      // 3. Ask OpenAI to propose a new studyplan structure
       const prompt =
-        `Given the performance summary and candidate lessons, propose a new curriculum ` +
+        `Given the performance summary and candidate lessons, propose a new studyplan ` +
         `for the student and return JSON with \"lessons\" (each with units containing id and duration_minutes) ` +
         `and \"notes\".\nPerformance Summary:\n${summaryText}\nCandidate Lessons:\n${lessonsText}`;
 
@@ -89,20 +89,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         proposal = { lessons: [], notes: 'LLM response parsing failed' };
       }
 
-      // 4. Determine next curriculum version for the student
-      const newVersion = await getNextCurriculumVersion(student_id);
+      // 4. Determine next studyplan version for the student
+      const newVersion = await getNextStudyplanVersion(student_id);
 
-      const curriculum = {
+      const studyplan = {
         version: newVersion,
         student_id,
         notes: proposal.notes || '',
         lessons: proposal.lessons || []
       };
 
-      await supabase.from('curricula_drafts').insert({
+      await supabase.from('studyplan_drafts').insert({
         version: newVersion,
         student_id,
-        curriculum
+        studyplan
       });
 
       // 5. Store prompt and response for audit trail
@@ -112,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await supabase.storage
         .from('summaries')
         .upload(
-          `curriculum_audit/${student_id}_${newVersion}.json`,
+          `studyplan_audit/${student_id}_${newVersion}.json`,
           auditContent,
           { upsert: true, contentType: 'application/json' }
         );
@@ -123,6 +123,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json({ versions });
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: 'curriculum update failed' });
+    res.status(500).json({ error: 'studyplan update failed' });
   }
 }

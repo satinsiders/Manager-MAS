@@ -4,7 +4,7 @@ import {
   LESSON_PICKER_URL,
   DISPATCHER_URL,
   DATA_AGGREGATOR_URL,
-  CURRICULUM_EDITOR_URL,
+  STUDYPLAN_EDITOR_URL,
   QA_FORMATTER_URL,
   ORCHESTRATOR_SECRET,
 } from '../../packages/shared/config';
@@ -19,7 +19,7 @@ type StepDescriptor<T, C = any> = {
 };
 
 const DAILY_STEPS: StepDescriptor<
-  { id: number; current_curriculum_version: number },
+  { id: number; current_studyplan_version: number },
   any
 >[] = [
   {
@@ -27,7 +27,7 @@ const DAILY_STEPS: StepDescriptor<
     label: 'lesson-picker',
     buildBody: (student) => ({
       student_id: student.id,
-      curriculum_version: student.current_curriculum_version
+      studyplan_version: student.current_studyplan_version
     })
   },
   {
@@ -50,7 +50,7 @@ const DAILY_STEPS: StepDescriptor<
 
 const WEEKLY_STEPS: StepDescriptor<void>[] = [
   { url: DATA_AGGREGATOR_URL, label: 'data-aggregator', buildBody: () => undefined },
-  { url: CURRICULUM_EDITOR_URL, label: 'curriculum-editor', buildBody: () => undefined }
+  { url: STUDYPLAN_EDITOR_URL, label: 'studyplan-editor', buildBody: () => undefined }
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -73,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (runType === 'daily') {
       const { data: students } = await supabase
         .from('students')
-        .select('id, current_curriculum_version')
+        .select('id, current_studyplan_version')
         .eq('active', true);
 
       for (const student of students ?? []) {
@@ -133,7 +133,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const { data: drafts } = await supabase
-        .from('curricula_drafts')
+        .from('studyplan_drafts')
         .select('student_id, version, qa_user');
 
       for (const draft of drafts ?? []) {
@@ -157,7 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (resp?.ok) {
           try {
             await supabase
-              .from('curricula_drafts')
+              .from('studyplan_drafts')
               .delete()
               .eq('student_id', draft.student_id)
               .eq('version', draft.version);
