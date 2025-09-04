@@ -42,7 +42,14 @@ class MockRedis {
   const mockRedis = new MockRedis();
 
   const req = {
-    body: { student_id: 's1', lesson_id: 'l1', score: 80, confidence_rating: 0.9 },
+    body: {
+      student_id: 's1',
+      lesson_id: 'l1',
+      score: 80,
+      confidence_rating: 0.9,
+      curriculum_id: 'c1',
+      question_type: 'math',
+    },
   } as any;
   const res: any = { status() { return { json() {} }; } };
 
@@ -53,6 +60,8 @@ class MockRedis {
     lesson_id: 'l1',
     score: 80,
     confidence_rating: 0.9,
+    curriculum_id: 'c1',
+    question_type: 'math',
   });
   assert.deepStrictEqual(mockRedis.lastExpire, [
     'last_3_scores:s1',

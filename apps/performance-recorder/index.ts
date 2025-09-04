@@ -31,11 +31,20 @@ export default async function handler(
   res: VercelResponse,
   client = redis,
 ) {
-  const { student_id, lesson_id, score, confidence_rating } = req.body as {
+  const {
+    student_id,
+    lesson_id,
+    score,
+    confidence_rating,
+    curriculum_id,
+    question_type,
+  } = req.body as {
     student_id: string;
     lesson_id: string;
     score: number;
     confidence_rating?: number;
+    curriculum_id?: string;
+    question_type?: string;
   };
   try {
     const { supabase } = await import('../../packages/shared/supabase');
@@ -46,6 +55,8 @@ export default async function handler(
         lesson_id,
         score,
         confidence_rating: confidence_rating ?? null,
+        curriculum_id: curriculum_id ?? null,
+        question_type: question_type ?? null,
       })
       .select()
       .single();
