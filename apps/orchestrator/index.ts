@@ -105,6 +105,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (lastResp) {
             try {
               const ctx = await lastResp.json();
+              if (ctx?.action === 'request_new_curriculum') {
+                await callWithRetry(
+                  CURRICULUM_EDITOR_URL,
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ student_id: student.id })
+                  },
+                  runType,
+                  `curriculum-editor:${student.id}`,
+                  3,
+                  'orchestrator_log'
+                );
+                lastResp = null;
+                break;
+              }
               const key = `${step.label}:${student.id}`;
               await writeDraft(key, ctx);
               usedDraftKeys.add(key);

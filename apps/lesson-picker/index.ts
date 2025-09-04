@@ -47,6 +47,16 @@ export async function selectNextLesson(
 
   const topics = student?.preferred_topics ?? [];
 
+  // Look up mastered question types
+  const { data: progress } = await s
+    .from('student_progress')
+    .select('question_type')
+    .eq('student_id', student_id)
+    .eq('mastered', true);
+  const masteredTypes = new Set(
+    (progress ?? []).map((p: any) => p.question_type)
+  );
+
   let embedding: number[] = Array(VECTOR_DIM).fill(0);
   try {
     const response = await o.embeddings.create({
@@ -94,20 +104,6 @@ export async function selectNextLesson(
 
   if (!next) throw new Error('no lesson match');
 
-  // Provisional log entry for dispatch tracking
-  try {
-    await s
-      .from('dispatch_log')
-      .insert({
-        student_id,
-        lesson_id: next.id,
-        status: 'selected',
-        sent_at: new Date().toISOString(),
-      });
-  } catch (err) {
-    console.error('dispatch_log insert failed', err);
-  }
-
   // Attempt to gather units for the chosen lesson from curriculum
   let units: any[] = [];
   if (curriculum_version !== undefined) {
@@ -121,7 +117,9 @@ export async function selectNextLesson(
       (l: any) => l.id === next.id
     );
     if (lesson?.units) {
-      units = lesson.units;
+      units = (lesson.units as any[]).filter(
+        (u: any) => !masteredTypes.has(u.question_type)
+      );
     }
   }
 
@@ -133,12 +131,37 @@ export async function selectNextLesson(
       .eq('student_id', student_id)
       .eq('lesson_id', next.id);
     units =
-      assigns?.map((a: any) => ({
-        id: a.id,
-        lesson_id: a.lesson_id,
-        duration_minutes: a.duration_minutes,
-        questions: a.questions_json,
-      })) ?? [];
+      assigns
+        ?.map((a: any) => {
+          const questions = (a.questions_json ?? []).filter(
+            (q: any) => !masteredTypes.has(q.question_type || q.type)
+          );
+          return {
+            id: a.id,
+            lesson_id: a.lesson_id,
+            duration_minutes: a.duration_minutes,
+            questions,
+          };
+        })
+        .filter((u: any) => u.questions.length > 0) ?? [];
+  }
+
+  if (units.length === 0) {
+    return { action: 'request_new_curriculum' };
+  }
+
+  // Provisional log entry for dispatch tracking
+  try {
+    await s
+      .from('dispatch_log')
+      .insert({
+        student_id,
+        lesson_id: next.id,
+        status: 'selected',
+        sent_at: new Date().toISOString(),
+      });
+  } catch (err) {
+    console.error('dispatch_log insert failed', err);
   }
 
   return { next_lesson_id: next.id, minutes, units };
