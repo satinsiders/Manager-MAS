@@ -1,6 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from '../../packages/shared/supabase';
-import { SUPERFASTSAT_API_URL } from '../../packages/shared/config';
+import {
+  SUPERFASTSAT_API_URL,
+  TEACHER_API_KEY,
+  TEACHER_ID,
+} from '../../packages/shared/config';
 
 export async function selectUnits(curriculum: any, minutes: number) {
   const flat: { unit: any; lessonId: string; duration: number }[] = [];
@@ -57,15 +61,29 @@ export async function selectUnits(curriculum: any, minutes: number) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { student_id, minutes = 0, units: presetUnits, next_lesson_id } =
+  const { student_id, curriculum_id, minutes = 0, units: presetUnits, next_lesson_id } =
     req.body as {
       student_id: string;
+      curriculum_id: string;
       minutes?: number;
       units?: any[];
       next_lesson_id?: string;
     };
 
   try {
+    const { data: assignment } = await supabase
+      .from('assigned_curricula')
+      .select('visible')
+      .eq('student_id', student_id)
+      .eq('curriculum_id', curriculum_id)
+      .eq('teacher_id', TEACHER_ID)
+      .single();
+
+    if (!assignment || assignment.visible) {
+      res.status(404).json({ error: 'assignment not found' });
+      return;
+    }
+
     let selected: { units: any[]; total: number; lastLessonId?: string } = {
       units: presetUnits ?? [],
       total: 0,
@@ -104,7 +122,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const response = await fetch(`${SUPERFASTSAT_API_URL}/units`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${TEACHER_API_KEY}`,
+      },
       body: JSON.stringify({ units: selected.units }),
     });
 
@@ -137,6 +158,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!response.ok) {
       throw new Error(`SuperfastSAT API responded ${response.status}`);
     }
+
+    await supabase
+      .from('assigned_curricula')
+      .update({ visible: true })
+      .eq('student_id', student_id)
+      .eq('curriculum_id', curriculum_id)
+      .eq('teacher_id', TEACHER_ID);
 
     res.status(200).json({ log_id: log.data?.id });
   } catch (err: any) {

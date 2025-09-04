@@ -29,7 +29,7 @@ To support this workflow, the system stores its own records for:
 npm install
 ```
 
-2. Copy `.env.example` to `.env` and fill in credentials for Supabase, Upstash Redis (`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`), OpenAI, Slack, set `STUDYPLAN_EDITOR_URL`, `ORCHESTRATOR_URL`, and secrets `ORCHESTRATOR_SECRET` and `SCHEDULER_SECRET`. Optionally adjust `DRAFT_TTL` (seconds for `draft:*` keys).
+2. Copy `.env.example` to `.env` and fill in credentials for Supabase, Upstash Redis (`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`), OpenAI, Slack, set `STUDYPLAN_EDITOR_URL`, `ORCHESTRATOR_URL`, `TEACHER_API_KEY`, `TEACHER_ID`, and secrets `ORCHESTRATOR_SECRET` and `SCHEDULER_SECRET`. Optionally adjust `DRAFT_TTL` (seconds for `draft:*` keys).
 
 3. Run type checks:
 
@@ -73,3 +73,16 @@ Body parameters:
 - `curriculum_id` – UUID of the curriculum
 - `score` – numeric performance score
 - `confidence_rating` – optional numeric rating representing the student's confidence
+
+### Dispatcher
+
+`POST /api/dispatcher`
+
+- Checks `assigned_curricula` for the requested `curriculum_id` with `visible=false` before dispatching.
+- Sends units to `SUPERFASTSAT_API_URL` with `Authorization: Bearer <TEACHER_API_KEY>`.
+- Marks the assignment `visible=true` after a successful dispatch.
+
+Environment variables:
+
+- `TEACHER_API_KEY` – API key used for teacher authentication.
+- `TEACHER_ID` – teacher identifier for assignment lookups.

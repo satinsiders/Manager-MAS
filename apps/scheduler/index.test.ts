@@ -17,6 +17,8 @@ process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
 process.env.ORCHESTRATOR_URL = 'http://orchestrator.test';
 process.env.ORCHESTRATOR_SECRET = 'orch-secret';
 process.env.SCHEDULER_SECRET = 'sched-secret';
+process.env.TEACHER_API_KEY = 'key';
+process.env.TEACHER_ID = 'teacher';
 
 (async () => {
   const { default: handler } = await import('./index');

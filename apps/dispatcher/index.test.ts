@@ -17,10 +17,13 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
 process.env.ORCHESTRATOR_URL = 'http://example.com';
 process.env.ORCHESTRATOR_SECRET = 'secret';
 process.env.SCHEDULER_SECRET = 'sched-secret';
+process.env.TEACHER_API_KEY = 'teacher-key';
+process.env.TEACHER_ID = 'teacher1';
 
 // Run tests in async IIFE to allow dynamic imports after env setup
 (async () => {
-  const { selectUnits } = await import('./index');
+  const { selectUnits, default: handler } = await import('./index');
+  const { supabase } = await import('../../packages/shared/supabase');
 
   const curriculum = {
     lessons: [
@@ -44,6 +47,82 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   assert.deepEqual(over.units.map((u: any) => u.id), ['u1']);
   assert.equal(over.total, 3);
 
-  console.log('selectUnits combination tests passed');
+  // Mock fetch to capture Authorization header
+  let authHeader: string | undefined;
+  (global as any).fetch = async (_url: string, opts: any) => {
+    authHeader = opts.headers.Authorization;
+    return { ok: true, status: 200, json: async () => ({}) } as any;
+  };
+
+  // Mock supabase interactions
+  let assignment: any = { visible: false };
+  let updateCalled = false;
+  (supabase as any).from = (table: string) => {
+    if (table === 'assigned_curricula') {
+      return {
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              eq: () => ({
+                single: async () => ({ data: assignment }),
+              }),
+            }),
+          }),
+        }),
+        update: () => ({
+          eq: () => ({
+            eq: () => ({
+              eq: () => {
+                updateCalled = true;
+                return Promise.resolve({});
+              },
+            }),
+          }),
+        }),
+      };
+    }
+    if (table === 'dispatch_log') {
+      return {
+        insert: () => ({ select: () => ({ single: async () => ({ data: { id: 1 } }) }) }),
+      };
+    }
+    if (table === 'students') {
+      return { update: () => ({ eq: () => Promise.resolve({}) }) };
+    }
+    return {} as any;
+  };
+
+  const req: any = {
+    body: {
+      student_id: 's1',
+      curriculum_id: 'c1',
+      units: [{ id: 'u1', duration_minutes: 5, lesson_id: 'l1' }],
+    },
+  };
+  let status = 0;
+  const res: any = {
+    status(code: number) {
+      status = code;
+      return { json() {} };
+    },
+  };
+
+  // Successful dispatch
+  await handler(req, res);
+  assert.equal(status, 200);
+  assert.equal(authHeader, `Bearer ${process.env.TEACHER_API_KEY}`);
+  assert.equal(updateCalled, true);
+
+  // Assignment missing
+  assignment = null;
+  updateCalled = false;
+  authHeader = undefined;
+  status = 0;
+  await handler(req, res);
+  assert.equal(status, 404);
+  assert.equal(updateCalled, false);
+  assert.equal(authHeader, undefined);
+
+  console.log('dispatcher tests passed');
 })();
 

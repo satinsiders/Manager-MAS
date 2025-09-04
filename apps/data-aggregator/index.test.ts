@@ -17,6 +17,8 @@ process.env.SUPERFASTSAT_API_URL = 'http://example.com';
 process.env.ORCHESTRATOR_URL = 'http://example.com';
 process.env.ORCHESTRATOR_SECRET = 'secret';
 process.env.SCHEDULER_SECRET = 'sched-secret';
+process.env.TEACHER_API_KEY = 'key';
+process.env.TEACHER_ID = 'teacher';
 
 (async () => {
   const { aggregateStudentStats } = await import('./index');
