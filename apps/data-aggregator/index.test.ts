@@ -22,12 +22,11 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   const { aggregateStudentStats } = await import('./index');
 
   const performances = [
-    { student_id: 's1', score: 80, confidence_rating: 4, timestamp: '2024-01-01' },
+    { student_id: 's1', question_type: 'math', score: 80, confidence_rating: 4, timestamp: '2024-01-01' },
   ];
   const dispatches = [
-    { student_id: 's1', status: 'sent' },
-    { student_id: 's1', status: 'failed' },
-    { student_id: 's2', status: 'failed' },
+    { student_id: 's1', question_type: 'math', status: 'sent' },
+    { student_id: 's1', question_type: 'reading', status: 'sent' },
   ];
 
   const students = await aggregateStudentStats(
@@ -37,9 +36,9 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
     async () => 'chart-url'
   );
 
-  const s1 = students.find((s) => s.student_id === 's1');
-  const s2 = students.find((s) => s.student_id === 's2');
-  assert.equal(s1?.completion_rate, 1);
-  assert.equal(s2, undefined);
-  console.log('Accurate completion rates with mixed dispatch statuses');
+  const math = students.find((s) => s.student_id === 's1' && s.question_type === 'math');
+  const reading = students.find((s) => s.student_id === 's1' && s.question_type === 'reading');
+  assert.equal(math?.completion_rate, 1);
+  assert.equal(reading?.completion_rate, 0);
+  console.log('Accurate completion rates grouped by question type');
 })();

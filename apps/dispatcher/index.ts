@@ -66,6 +66,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
   try {
+    const { data: student } = await supabase
+      .from('students')
+      .select('current_curriculum_version')
+      .eq('id', student_id)
+      .single();
+
+    if (!student) throw new Error('student not found');
+
+    const { data: curr } = await supabase
+      .from('curricula')
+      .select('id, curriculum')
+      .eq('student_id', student_id)
+      .eq('version', student.current_curriculum_version)
+      .single();
+
+    if (!curr) throw new Error('curriculum not found');
+
     let selected: { units: any[]; total: number; lastLessonId?: string } = {
       units: presetUnits ?? [],
       total: 0,
@@ -73,23 +90,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     if (!presetUnits) {
-      const { data: student } = await supabase
-        .from('students')
-        .select('current_curriculum_version')
-        .eq('id', student_id)
-        .single();
-
-      if (!student) throw new Error('student not found');
-
-      const { data: curr } = await supabase
-        .from('curricula')
-        .select('curriculum')
-        .eq('student_id', student_id)
-        .eq('version', student.current_curriculum_version)
-        .single();
-
-      if (!curr) throw new Error('curriculum not found');
-
       selected = await selectUnits(curr.curriculum, minutes);
     } else {
       selected.total = presetUnits.reduce(
@@ -100,6 +100,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const lastUnit = presetUnits[presetUnits.length - 1];
         selected.lastLessonId = lastUnit.lesson_id || lastUnit.lessonId;
       }
+    }
+
+    let question_type: string | undefined;
+    if (selected.lastLessonId) {
+      const { data: lesson } = await supabase
+        .from('lessons')
+        .select('topic')
+        .eq('id', selected.lastLessonId)
+        .single();
+      question_type = lesson?.topic ?? undefined;
+    }
+    if (!question_type) {
+      question_type = (curr.curriculum as any)?.metadata?.question_type;
     }
 
     const response = await fetch(`${SUPERFASTSAT_API_URL}/units`, {
@@ -117,6 +130,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         minutes: selected.total,
         channel: 'auto',
         status,
+        curriculum_id: curr.id,
+        question_type,
         ...(next_lesson_id
           ? { requested_lesson_id: next_lesson_id }
           : {}),
