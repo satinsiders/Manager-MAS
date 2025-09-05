@@ -1,24 +1,24 @@
-1) Scope & Roles
-Platform (external system, via APIs 1–5)
- Source of truth for: curriculum assignment/dispatch and day-level learning results aggregated by the platform (lesson-level averages, units sent).
- Actions: assign curriculum, dispatch minutes, list dispatched curricula, list students, return per-day learning stats.
+## 1) Scope & Roles
+- Platform (external system, via APIs 1–5)
+  - Source of truth for: curriculum assignment/dispatch and day-level learning results aggregated by the platform (lesson-level averages, units sent).
+  - Actions: assign curriculum, dispatch minutes, list dispatched curricula, list students, return per-day learning stats.
 
 
-Supabase (your internal data store)
- Source of truth for: study plan strategy, versions, mastery tracking by question type, decision logs, test/exam score estimation, and analytics snapshots mirrored from the platform.
+- Supabase (your internal data store)
+  - Source of truth for: study plan strategy, versions, mastery tracking by question type, decision logs, test/exam score estimation, and analytics snapshots mirrored from the platform.
 
 
-Manager MAS (decision engine)
- Consumes both Platform data and Supabase state to (a) decide what to assign/dispatch next, (b) update the study plan and mastery status, (c) log decisions and outcomes.
+- Manager MAS (decision engine)
+  - Consumes both Platform data and Supabase state to (a) decide what to assign/dispatch next, (b) update the study plan and mastery status, (c) log decisions and outcomes.
 
 
 
-2) Platform API Integration (what each API must deliver / how MAS uses it)
-API 1. Curriculum Assignment API
-Purpose: Assign a curriculum to a specific student.
+## 2) Platform API Integration (what each API must deliver / how MAS uses it)
+### API 1. Curriculum Assignment API
+**Purpose:** Assign a curriculum to a specific student.
 
 
-Details:
+**Details:**
 
 
 The curriculum comes from a catalog of available materials (e.g., “Inference Guidance,” “Practice Questions (Hard),” etc.).
@@ -27,15 +27,15 @@ The curriculum comes from a catalog of available materials (e.g., “Inference G
 Once assigned, the curriculum is linked to the student’s account but is not yet visible to the student until explicitly dispatched.
 
 
-Use Case: When the teacher (or Manager MAS) decides that a student should begin working on a new curriculum, this API creates the assignment.
+**Use Case:** When the teacher (or Manager MAS) decides that a student should begin working on a new curriculum, this API creates the assignment.
 
 
 
-API 2. Study Load Dispatch API
-Purpose: Send a selected portion of an assigned curriculum to the student, measured in minutes.
+### API 2. Study Load Dispatch API
+**Purpose:** Send a selected portion of an assigned curriculum to the student, measured in minutes.
 
 
-Details:
+**Details:**
 
 
 Each question within the curriculum has an “expected minutes to complete” value.
@@ -47,38 +47,38 @@ MAS specifies how many minutes’ worth of content should be dispatched (e.g., 1
 The API ensures the requested minutes are within the remaining workload.
 
 
-Use Case: Daily study dispatch — MAS decides how many minutes of which curriculum to send.
+**Use Case:** Daily study dispatch — MAS decides how many minutes of which curriculum to send.
 
 
 
-API 3. Student Curriculum Dispatch List API
-Purpose: Retrieve the list of all curricula already dispatched to a student, along with progress.
+### API 3. Student Curriculum Dispatch List API
+**Purpose:** Retrieve the list of all curricula already dispatched to a student, along with progress.
 
 
-Details:
+**Details:**
 
 
-For each dispatched curriculum:
+**For each dispatched curriculum:**
 
 
-Curriculum name/title
+- Curriculum name/title
 
 
-Total study load (minutes or units)
+- Total study load (minutes or units)
 
 
-Remaining study load (minutes or units)
+- Remaining study load (minutes or units)
 
 
-Use Case: MAS checks whether there is enough content left to continue dispatching from a given curriculum, or whether it needs to assign a new one.
+**Use Case:** MAS checks whether there is enough content left to continue dispatching from a given curriculum, or whether it needs to assign a new one.
 
 
 
-API 4. Student Information API
-Purpose: Retrieve the roster of students connected to the teacher account.
+### API 4. Student Information API
+**Purpose:** Retrieve the roster of students connected to the teacher account.
 
 
-Details:
+**Details:**
 
 
 Student name
@@ -90,34 +90,34 @@ Student email
 Student identifier (unique key for API operations)
 
 
-Use Case: MAS and teacher account use this API to look up students and link decisions/actions to the correct student.
+**Use Case:** MAS and teacher account use this API to look up students and link decisions/actions to the correct student.
 
 
 
-API 5. Student Daily Performance API
-Purpose: Provide a performance summary for each student within the dispatched curriculum bundles of a given day.
+### API 5. Student Daily Performance API
+**Purpose:** Provide a performance summary for each student within the dispatched curriculum bundles of a given day.
 
 
-Details:
+**Details:**
 
 
-For each dispatched lesson/bundle:
+**For each dispatched lesson/bundle:**
 
 
-Average correctness (percentage of questions correct)
+- Average correctness (percentage of questions correct)
 
 
-Average confidence rating (self-reported by student)
+- Average confidence rating (self-reported by student)
 
 
-Number of units included in the dispatched lesson
+- Number of units included in the dispatched lesson
 
 
-Use Case: MAS evaluates whether the student is performing well, needs remediation, or has reached mastery — and decides what to dispatch next.
+**Use Case:** MAS evaluates whether the student is performing well, needs remediation, or has reached mastery — and decides what to dispatch next.
 
 
 
-3) Supabase Data Model (authoritative store for strategy, mastery, and auditing)
+## 3) Supabase Data Model (authoritative store for strategy, mastery, and auditing)
 Below are entities and key attributes (described in plain English, not field names), plus relationships.
 A. 
 
@@ -332,7 +332,7 @@ Link back to Decision Log entries to compare human overrides vs. automated choic
 
 
 
-4) Core Relationships (summary)
+## 4) Core Relationships (summary)
 Student ↔ Teacher: many-to-one.
 
 
@@ -361,7 +361,7 @@ MAS Decision Log → MAS Action Execution Log: one-to-many (one decision can yie
 
 
 
-5) Manager MAS Operational Flow
+## 5) Manager MAS Operational Flow
 Daily cycle (per student)
 Sync intake (read APIs 3, 5, and 4 as needed):
 
@@ -433,7 +433,7 @@ When the dispatched item is a diagnostic or full-length exam, on results availab
 
 
 
-6) Mastery, Thresholds, and Evidence Windows (data, not code)
+## 6) Mastery, Thresholds, and Evidence Windows (data, not code)
 Mastery status per Question Type is not a single score but a state plus supporting evidence:
 
 
@@ -460,7 +460,7 @@ Regression trigger: drop below threshold for Y consecutive lessons; confidence c
 
 All thresholds, minimum sample sizes, and lookback windows should be stored alongside the Study Plan Version and referenced by the MAS Decision Log so the exact policy used is auditable later.
 
-7) API–Supabase Integration Patterns
+## 7) API–Supabase Integration Patterns
 Synchronization keys:
 
 
@@ -495,7 +495,7 @@ MAS Action Execution Log must store platform response fingerprints (e.g., dispat
 
 
 
-8) Error Handling & Edge Cases
+## 8) Error Handling & Edge Cases
 Exhausted workload: Switch curriculum (API 1) before attempting dispatch (API 2).
 
 
@@ -521,7 +521,7 @@ When a teacher adjusts the plan or minutes, write a human override entry that re
 
 
 
-9) Security, Privacy, and Access
+## 9) Security, Privacy, and Access
 Store only minimal PII (name, email).
 
 
@@ -538,7 +538,7 @@ Consider row-level security to isolate students by teacher or tenant.
 
 
 
-10) Analytics & Observability (derived from Supabase)
+## 10) Analytics & Observability (derived from Supabase)
 Per-student dashboard: minutes dispatched vs. target; mastery status by Question Type; approximate score trend; days to exam.
 
 
@@ -552,7 +552,7 @@ Data quality: late or missing API 5 entries; taxonomy parsing mismatches; duplic
 
 
 
-11) Open Assumptions (flag for platform devs)
+## 11) Open Assumptions (flag for platform devs)
 Platform guarantees unique, stable identifiers for students, curricula, and dispatched bundles/lessons.
 
 
@@ -569,40 +569,40 @@ The platform respects “hidden until sent” behavior for assigned curricula, a
 
 
 
-Quick Ownership Summary
-Handled by Platform APIs:
-Assign curriculum to student (hidden or visible).
+## Quick Ownership Summary
+### Handled by Platform APIs:
+- Assign curriculum to student (hidden or visible).
 
 
-Dispatch content measured in minutes.
+- Dispatch content measured in minutes.
 
 
-Report dispatched curricula with total vs. remaining workload.
+- Report dispatched curricula with total vs. remaining workload.
 
 
-List students.
+- List students.
 
 
-Report per-day lesson/bundle outcomes: average correctness, average confidence, units per lesson.
+- Report per-day lesson/bundle outcomes: average correctness, average confidence, units per lesson.
 
 
-Handled by Supabase (owned by you):
-Study plan (current) and full version history.
+### Handled by Supabase (owned by you):
+- Study plan (current) and full version history.
 
 
-Mastery tracking by Question Type with evidence windows.
+- Mastery tracking by Question Type with evidence windows.
 
 
-Mirrors of Platform progress (dispatch and daily performance) for decisioning and analytics.
+- Mirrors of Platform progress (dispatch and daily performance) for decisioning and analytics.
 
 
-Assessment records with approximate score estimation.
+- Assessment records with approximate score estimation.
 
 
-MAS decisions, action execution logs, notifications, and human overrides.
+- MAS decisions, action execution logs, notifications, and human overrides.
 
 
-Taxonomy mapping and curriculum catalog mirror for stable joins.
+- Taxonomy mapping and curriculum catalog mirror for stable joins.
 
 
-Constraints, pacing targets, and policy versions for auditability.
+- Constraints, pacing targets, and policy versions for auditability.
