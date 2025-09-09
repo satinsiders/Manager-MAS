@@ -36,14 +36,18 @@ export default async function handler(
     lesson_id,
     score,
     confidence_rating,
+    study_plan_id,
     curriculum_id,
+    platform_curriculum_id,
     question_type,
   } = req.body as {
     student_id: string;
     lesson_id: string;
     score: number;
     confidence_rating?: number;
-    curriculum_id?: string;
+    study_plan_id?: string;
+    curriculum_id?: string; // deprecated; fallback support
+    platform_curriculum_id?: string;
     question_type?: string;
   };
   try {
@@ -55,7 +59,8 @@ export default async function handler(
         lesson_id,
         score,
         confidence_rating: confidence_rating ?? null,
-        curriculum_id: curriculum_id ?? null,
+        study_plan_id: study_plan_id ?? curriculum_id ?? null,
+        platform_curriculum_id: platform_curriculum_id ?? null,
         question_type: question_type ?? null,
       })
       .select()

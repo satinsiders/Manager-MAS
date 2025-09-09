@@ -14,6 +14,11 @@ To support this workflow, the system stores its own records for:
 - Daily performance logs capturing correctness and confidence ratings.
 - Approximate scores for diagnostic tests and full-length exams.
 
+## Terminology
+
+- Curriculum: immutable content catalog from the SuperfastSAT platform, dispatched in minute-based units via platform APIs. Sourced via platform APIs (assignment/dispatch lists and daily performance) and mirrored in our database.
+- Study Plan: the internal, versioned strategy owned by this system (created, drafted, QA’d, and approved). Stored in `curricula` (exposed as the `study_plans` view).
+
 ## Structure
 
 - `apps/` – Vercel serverless functions for each agent.
@@ -70,6 +75,7 @@ Environment variables:
 Body parameters:
 
 - `student_id` – UUID of the student
-- `curriculum_id` – UUID of the curriculum
+- `study_plan_id` – UUID of the study plan version (internal)
+- `platform_curriculum_id` – external curriculum identifier (platform)
 - `score` – numeric performance score
 - `confidence_rating` – optional numeric rating representing the student's confidence

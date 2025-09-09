@@ -47,7 +47,8 @@ class MockRedis {
       lesson_id: 'l1',
       score: 80,
       confidence_rating: 0.9,
-      curriculum_id: 'c1',
+      study_plan_id: 'sp1',
+      platform_curriculum_id: 'ext-cur-123',
       question_type: 'math',
     },
   } as any;
@@ -60,7 +61,8 @@ class MockRedis {
     lesson_id: 'l1',
     score: 80,
     confidence_rating: 0.9,
-    curriculum_id: 'c1',
+    study_plan_id: 'sp1',
+    platform_curriculum_id: 'ext-cur-123',
     question_type: 'math',
   });
   assert.deepStrictEqual(mockRedis.lastExpire, [

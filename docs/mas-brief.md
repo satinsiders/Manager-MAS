@@ -11,6 +11,8 @@ All processes are driven by an LLM-based multi-agent system with observability a
 
 The system maintains a dedicated teacher account that is manually paired with each student on the SuperfastSAT platform. Once linked, the teacher account can interact with the student and manage curriculum delivery.
 
+Note on terms: “Curriculum” refers to platform-owned content (immutable; dispatched in minutes). “Study Plan” refers to MAS-owned, versioned strategy artifacts (`study_plans`), created and revised based on performance.
+
 ## 1. Content Hierarchy & Delivery Flow
 
 - All curricula live in the SuperfastSAT CMS, which syncs with the LMS.
@@ -27,7 +29,7 @@ The system maintains a dedicated teacher account that is manually paired with ea
 | Scheduler | GitHub Actions cron | Call daily and weekly jobs at the exact time. |
 | Orchestrator | All triggers | Pass context to required sub-agents and manage retries and logging. |
 | Dispatcher | Immediately after selection | Send curriculum units and metadata to the SuperfastSAT platform and record in `dispatch_log`. |
-| Performance Recorder | Upon score arrival | Append `{student_id, curriculum_id, score, confidence_rating}` to the `performances` table. |
+| Performance Recorder | Upon score arrival | Append `{student_id, study_plan_id, score, confidence_rating}` to the `performances` table. |
 | Data Aggregator | Fri 23:00 | Generate `performance_summary.json` by combining weekly performances and charts. |
 | Studyplan Editor | After aggregation | Produce new `studyplan_v(X+1)` JSON. |
 | QA & Formatter | Immediately after edit | Validate JSON schema/style and update student pointers to the new version. |
@@ -40,11 +42,11 @@ The system maintains a dedicated teacher account that is manually paired with ea
 | Table | Key Fields | Purpose |
 |-------|------------|---------|
 | `students` | `id, name, timezone, current_studyplan_version, preferred_topics` | Manage personalization status |
-| `performances` | `id, student_id, curriculum_id, score, confidence_rating` | Source data for learning results |
+| `performances` | `id, student_id, study_plan_id, score, confidence_rating` | Source data for learning results |
 | `studyplan_drafts` (`curricula_drafts`) | `version, student_id, studyplan_json` | Proposed studyplans awaiting QA |
 | `studyplans` (`curricula`) | `version, student_id, studyplan_json, qa_user, approved_at` | Approved, version-controlled learning plan |
-| `assignments` | `id, curriculum_id, student_id, questions_json, generated_by` | Supplementary problem sets |
-| `dispatch_log` | `id, student_id, curriculum_id, sent_at, channel, status` | Operational visibility |
+| `assignments` | `id, lesson_id, student_id, questions_json, generated_by, duration_minutes` | Supplementary problem sets |
+| `dispatch_log` | `id, student_id, platform_curriculum_id, study_plan_id, sent_at, channel, status` | Operational visibility (platform + internal linkage) |
 
 Immutable rules: `performances`, `assignments`, and past studyplans can only be appended. Only `students.current_studyplan_version` may be modified.
 
@@ -109,4 +111,3 @@ run completes.
 - Layered memory → enables both fast decision-making and data integrity.
 - Easy to swap LLM modules → immediately reflect cost and performance optimizations.
 - Human gate → only QA-approved studyplans are applied to students.
-

@@ -46,6 +46,24 @@ function baseFrom(table: string) {
       }
     };
   }
+  if (table === 'lessons') {
+    return {
+      select() {
+        return {
+          eq(_col: string, val: any) {
+            return {
+              single: async () => ({
+                data: {
+                  // Map lesson id to a topic; default to 'history'
+                  topic: val === 'l3' ? 'geometry' : val === 'l2' ? 'algebra' : 'history'
+                }
+              })
+            };
+          }
+        };
+      }
+    };
+  }
   if (table === 'curricula') {
     return {
       select() {
@@ -69,6 +87,43 @@ function baseFrom(table: string) {
                             id: 'l2',
                             units: [
                               { id: 'u3', duration_minutes: 4, question_type: 'algebra' }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  })
+                };
+              }
+            };
+          }
+        };
+      }
+    };
+  }
+  if (table === 'study_plans') {
+    return {
+      select() {
+        return {
+          eq() {
+            return {
+              eq() {
+                return {
+                  single: async () => ({
+                    data: {
+                      study_plan: {
+                        lessons: [
+                          {
+                            id: 'l3',
+                            units: [
+                              { id: 'u1', duration_minutes: 5 },
+                              { id: 'u2', duration_minutes: 6 }
+                            ]
+                          },
+                          {
+                            id: 'l2',
+                            units: [
+                              { id: 'u3', duration_minutes: 4 }
                             ]
                           }
                         ]
@@ -190,6 +245,25 @@ function createSupabaseWithAssignments(onInsert: (fields: any) => Promise<void>)
           }
         };
       }
+      if (table === 'study_plans') {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  eq() {
+                    return {
+                      single: async () => ({
+                        data: { study_plan: { lessons: [] } }
+                      })
+                    };
+                  }
+                };
+              }
+            };
+          }
+        };
+      }
       if (table === 'assignments') {
         return {
           select() {
@@ -208,6 +282,23 @@ function createSupabaseWithAssignments(onInsert: (fields: any) => Promise<void>)
                       ]
                     };
                   }
+                };
+              }
+            };
+          }
+        };
+      }
+      if (table === 'lessons') {
+        return {
+          select() {
+            return {
+              eq(_col: string, val: any) {
+                return {
+                  single: async () => ({
+                    data: {
+                      topic: val === 'l3' ? 'geometry' : val === 'l2' ? 'algebra' : 'history'
+                    }
+                  })
                 };
               }
             };
@@ -327,15 +418,14 @@ class MockOpenAI {
   }, [limitJump]);
   assert.equal(result5.next_lesson_id, 'l2');
 
-  // Mastery filtering
+  // Mastery filtering: if the selected lesson's question type is mastered, request a new curriculum
   progressRows = [{ question_type: 'geometry' }];
   const result6 = (await selectNextLesson('student1', 2, {
     redis: new MockRedis() as any,
     supabase: supabase as any,
     openai: new MockOpenAI() as any
   })) as any;
-  assert.equal(result6.units.length, 1);
-  assert.equal(result6.units[0].question_type, 'algebra');
+  assert.equal(result6.action, 'request_new_curriculum');
 
   // Request new curriculum when all units mastered
   progressRows = [

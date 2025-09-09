@@ -105,26 +105,88 @@ export async function selectNextLesson(
   if (!next) throw new Error('no lesson match');
 
   // Attempt to gather units for the chosen lesson from curriculum
+  // Derive question type from the lesson (curriculum title proxy)
+  let chosenQuestionType: string | undefined;
+  try {
+    const { data: lessonRow } = await s
+      .from('lessons')
+      .select('topic')
+      .eq('id', next.id)
+      .single();
+    chosenQuestionType = lessonRow?.topic ?? undefined;
+  } catch {
+    /* ignore */
+  }
+
+  // If the derived question type is already mastered, request new study plan/curriculum
+  if (chosenQuestionType && masteredTypes.has(chosenQuestionType)) {
+    return { action: 'request_new_curriculum' };
+  }
+
+  // Prefer minutes-based dispatch if a platform curriculum is available with remaining workload
+  let preferMinutes = false;
+  try {
+    if (chosenQuestionType) {
+      const { data: qt } = await s
+        .from('question_types')
+        .select('id, specific_type, canonical_path')
+        .ilike('specific_type', chosenQuestionType)
+        .limit(1);
+      let qid: string | undefined = qt && qt.length > 0 ? (qt[0] as any).id : undefined;
+      if (!qid) {
+        const { data: qt2 } = await s
+          .from('question_types')
+          .select('id, canonical_path')
+          .ilike('canonical_path', `%> ${chosenQuestionType}`)
+          .limit(1);
+        qid = qt2 && qt2.length > 0 ? (qt2[0] as any).id : undefined;
+      }
+      if (qid) {
+        const { data: catalog } = await s
+          .from('curriculum_catalog')
+          .select('external_curriculum_id')
+          .eq('question_type_id', qid)
+          .eq('active', true);
+        const extIds = new Set((catalog ?? []).map((c: any) => c.external_curriculum_id));
+        if (extIds.size > 0) {
+          const { data: mirror } = await s
+            .from('platform_dispatches')
+            .select('external_curriculum_id, remaining_minutes')
+            .eq('student_id', student_id);
+          const remainingOk = (mirror ?? []).some((m: any) =>
+            extIds.has(m.external_curriculum_id) && (m.remaining_minutes == null || Number(m.remaining_minutes) > 0)
+          );
+          preferMinutes = remainingOk || (mirror ?? []).length === 0; // if no mirror data, we still allow minutes
+        }
+      }
+    }
+  } catch {
+    // Ignore mapping errors and proceed with units
+  }
+
   let units: any[] = [];
   if (curriculum_version !== undefined) {
-    const { data: curr } = await s
-      .from('curricula')
-      .select('curriculum')
+    const { data: plan } = await s
+      .from('study_plans')
+      .select('study_plan')
       .eq('student_id', student_id)
       .eq('version', curriculum_version)
       .single();
-    const lesson = curr?.curriculum?.lessons?.find(
+    const lesson = plan?.study_plan?.lessons?.find(
       (l: any) => l.id === next.id
     );
     if (lesson?.units) {
-      units = (lesson.units as any[]).filter(
-        (u: any) => !masteredTypes.has(u.question_type)
-      );
+      // Units inherit the question type from the parent lesson/curriculum; do not filter per-unit
+      units = lesson.units as any[];
     }
   }
 
   // Fallback to assignments if no curriculum units found
   if (units.length === 0) {
+    // If the lesson's question type is mastered, do not fall back to assignments
+    if (chosenQuestionType && masteredTypes.has(chosenQuestionType)) {
+      return { action: 'request_new_curriculum' };
+    }
     const { data: assigns } = await s
       .from('assignments')
       .select('id, lesson_id, questions_json, duration_minutes')
@@ -132,18 +194,17 @@ export async function selectNextLesson(
       .eq('lesson_id', next.id);
     units =
       assigns
-        ?.map((a: any) => {
-          const questions = (a.questions_json ?? []).filter(
-            (q: any) => !masteredTypes.has(q.question_type || q.type)
-          );
-          return {
-            id: a.id,
-            lesson_id: a.lesson_id,
-            duration_minutes: a.duration_minutes,
-            questions,
-          };
-        })
-        .filter((u: any) => u.questions.length > 0) ?? [];
+        ?.map((a: any) => ({
+          id: a.id,
+          lesson_id: a.lesson_id,
+          duration_minutes: a.duration_minutes,
+          questions: a.questions_json ?? [],
+        })) ?? [];
+  }
+
+  if (preferMinutes) {
+    // Return minutes-only path to allow dispatcher to select platform curriculum
+    return { next_lesson_id: next.id, minutes };
   }
 
   if (units.length === 0) {
@@ -180,4 +241,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(500).json({ error: 'lesson selection failed' });
   }
 }
-
