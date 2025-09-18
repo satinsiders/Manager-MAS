@@ -1,23 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { Redis } from '@upstash/redis';
 import OpenAI from 'openai';
 import {
   OPENAI_API_KEY,
-  UPSTASH_REDIS_REST_URL,
-  UPSTASH_REDIS_REST_TOKEN,
 } from '../../packages/shared/config';
 import { supabase } from '../../packages/shared/supabase';
 
 // Default clients – injectable for tests
-const redis = new Redis({
-  url: UPSTASH_REDIS_REST_URL,
-  token: UPSTASH_REDIS_REST_TOKEN,
-});
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 const VECTOR_DIM = 1536;
 const MATCH_THRESHOLD = 0.75;
 const MATCH_COUNT = 5;
+const RECENT_SCORES_TTL = parseInt(process.env.LAST_SCORES_TTL ?? '604800', 10);
 
 type Lesson = { id: string; difficulty: number; topic?: string; [key: string]: any };
 type RuleFilter = (lesson: Lesson) => boolean;
@@ -25,16 +19,32 @@ type RuleFilter = (lesson: Lesson) => boolean;
 export async function selectNextLesson(
   student_id: string,
   curriculum_version?: number,
-  clients = { redis, supabase, openai },
+  clients = { supabase, openai },
   ruleFilters: RuleFilter[] = [],
 ) {
-  const { redis: r, supabase: s, openai: o } = clients;
+  const { supabase: s, openai: o } = clients;
 
-  // Read last 3 scores from Redis to gauge performance
-  const recentScores = await r.lrange(`last_3_scores:${student_id}`, 0, 2);
+  // Read last 3 scores from Supabase to gauge performance
+  const { data: recent } = await s
+    .from('student_recent_scores')
+    .select('scores, updated_at')
+    .eq('student_id', student_id)
+    .maybeSingle();
+
+  let usableScores: number[] = Array.isArray(recent?.scores)
+    ? (recent?.scores as number[])
+    : [];
+  if (recent?.updated_at) {
+    const updatedAt = new Date(recent.updated_at).getTime();
+    if (Date.now() - updatedAt > RECENT_SCORES_TTL * 1000) {
+      usableScores = [];
+    }
+  }
+
   const avgScore =
-    recentScores.length > 0
-      ? recentScores.map(Number).reduce((a, b) => a + b, 0) / recentScores.length
+    usableScores.length > 0
+      ? usableScores.reduce((sum, value) => sum + Number(value || 0), 0) /
+        usableScores.length
       : 0;
   const minutes = avgScore < 60 ? 30 : 15;
 

@@ -1,30 +1,27 @@
-```markdown
 # 프로덕션 선생님 API 가이드
 
 📚 **API 가이드 목차**
 - 학생 커리큘럼 목록 조회 API
 - 학습분량 설정 API
-- 학생 목록조회 API
-- 학습 스케쥴 목록조회 API
+- 학생 목록 조회 API
+- 학습 스케줄 목록 조회 API
+- 커리큘럼 목록 조회 API
+- 학생 커리큘럼 수강권 지급 API
 
 ---
 
 ## 학생 커리큘럼 목록 조회 API
 
-**Endpoint**  
-```
-
-GET [https://prod-teacher-api.superfastsat.com/student-curriculums](https://prod-teacher-api.superfastsat.com/student-curriculums)
-
+**Endpoint**
+```http
+GET https://prod-teacher-api.superfastsat.com/student-curriculums
 ```
 
 **Headers**
-```
-
-Authorization: Bearer {access\_token}
+```http
+Authorization: Bearer {access_token}
 Content-Type: application/json
-
-````
+```
 
 **Query Parameters**
 
@@ -63,7 +60,7 @@ Content-Type: application/json
     "remainingDuration": 300
   }
 ]
-````
+```
 
 **응답 필드 설명**
 
@@ -84,17 +81,15 @@ Content-Type: application/json
 
 ## 학습분량 설정 API
 
-### 1. 학습분량 설정
+### 학습분량 설정
 
 **Endpoint**
-
-```
+```http
 POST https://prod-teacher-api.superfastsat.com/study-schedules/learning-volumes
 ```
 
 **Headers**
-
-```
+```http
 Authorization: Bearer {access_token}
 Content-Type: application/json
 ```
@@ -115,7 +110,7 @@ Content-Type: application/json
 
 **Response 예시 (201 Created)**
 
-```
+```text
 // 응답 본문 없음
 ```
 
@@ -123,20 +118,15 @@ Content-Type: application/json
 
 ## 학생 목록 조회 API
 
-**API 엔드포인트**
-학생 목록 조회
-
-```
+**Endpoint**
+```http
 GET https://prod-teacher-api.superfastsat.com/students
 ```
 
-**요청 헤더**
-
-```json
-{
-  "Authorization": "Bearer {access_token}",
-  "Content-Type": "application/json"
-}
+**Headers**
+```http
+Authorization: Bearer {access_token}
+Content-Type: application/json
 ```
 
 **요청 파라미터**
@@ -195,20 +185,15 @@ GET https://prod-teacher-api.superfastsat.com/students
 
 ## 학습스케줄 목록 조회 API
 
-**API 엔드포인트**
-학습스케줄 목록 조회
-
-```
+**Endpoint**
+```http
 GET https://prod-teacher-api.superfastsat.com/teacher/study-schedules
 ```
 
-**요청 헤더**
-
-```json
-{
-  "Authorization": "Bearer {access_token}",
-  "Content-Type": "application/json"
-}
+**Headers**
+```http
+Authorization: Bearer {access_token}
+Content-Type: application/json
 ```
 
 **요청 파라미터**
@@ -332,5 +317,82 @@ GET https://prod-teacher-api.superfastsat.com/teacher/study-schedules
 | confidence  | number / null  | 정답 확신도   |
 | unit        | object         | 유닛 상세 정보 |
 
+---
+
+## 커리큘럼 목록 조회 API
+
+**Endpoint**
+```http
+GET https://prod-teacher-api.superfastsat.com/curriculums
 ```
+
+**Headers**
+```http
+Authorization: Bearer {access_token}
+```
+
+**Query Parameters**
+
+| 이름 | 타입 | 필수 | 설명 | 기본값 |
+|------|------|------|------|--------|
+| page | number | ❌ | 페이지 번호 | 1 |
+| limit | number | ❌ | 페이지당 항목 수 | 20 |
+| search | string | ❌ | 커리큘럼 제목 검색어 | - |
+
+**Response 예시 (200 OK)**
+```json
+[
+  {
+    "id": 1,
+    "createdAt": "2024-01-01T00:00:00Z",
+    "originId": 100,
+    "title": "중학교 1학년 수학"
+  },
+  {
+    "id": 2,
+    "createdAt": "2024-01-02T00:00:00Z",
+    "originId": 101,
+    "title": "중학교 1학년 영어"
+  }
+]
+```
+
+**응답 필드 설명**
+
+| 필드명 | 타입 | 설명 |
+| ------ | ----- | ---- |
+| id | number | 커리큘럼 ID |
+| createdAt | string | 커리큘럼 생성일 (ISO 8601 형식) |
+| originId | number | 원본 커리큘럼 ID |
+| title | string | 커리큘럼 제목 |
+
+---
+
+## 학생 커리큘럼 수강권 지급 API
+
+**Endpoint**
+```http
+POST https://prod-teacher-api.superfastsat.com/courses
+```
+
+**Headers**
+```http
+Authorization: Bearer {access_token}
+Content-Type: application/json
+```
+
+**Request Body (JSON)**
+```json
+{
+  "curriculumId": 1,
+  "studentId": 123
+}
+```
+
+* `curriculumId`: 커리큘럼 ID (필수)  
+* `studentId`: 학생 ID (필수)
+
+**Response 예시 (200 OK)**
+```text
+// 응답 본문 없음
 ```

@@ -36,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (decisionIds.length > 0) {
       const { data: acts } = await supabase
         .from('mas_actions')
-        .select('id, decision_id, action_type, status, platform_curriculum_id, platform_bundle_ref, requested_minutes, actual_minutes, dispatch_log_id, attempted_at, request, response')
+        .select('id, decision_id, action_type, status, platform_curriculum_id, platform_student_curriculum_id, platform_bundle_ref, requested_minutes, actual_minutes, dispatch_log_id, attempted_at, request, response')
         .in('decision_id', decisionIds)
         .order('attempted_at', { ascending: false })
         .limit(5 * decisionIds.length);
@@ -47,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (include_dispatch) {
       let dispQuery = supabase
         .from('dispatch_log')
-        .select('id, student_id, platform_curriculum_id, study_plan_id, question_type, requested_minutes, actual_minutes, minutes, unit_ids, status, sent_at, channel')
+        .select('id, student_id, platform_curriculum_id, platform_student_curriculum_id, study_plan_id, question_type, requested_minutes, actual_minutes, minutes, unit_ids, status, sent_at, channel')
         .order('sent_at', { ascending: false })
         .limit(limit);
       if (student_id) dispQuery = dispQuery.eq('student_id', student_id);
@@ -74,4 +74,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(500).json({ error: 'audit fetch failed' });
   }
 }
-

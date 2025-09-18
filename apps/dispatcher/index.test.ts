@@ -8,12 +8,12 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'key';
 process.env.NOTIFICATION_BOT_URL = 'http://example.com';
 process.env.LESSON_PICKER_URL = 'http://example.com';
 process.env.DISPATCHER_URL = 'http://example.com';
+process.env.ASSIGNMENTS_URL = 'http://example.com';
 process.env.DATA_AGGREGATOR_URL = 'http://example.com';
 process.env.CURRICULUM_EDITOR_URL = 'http://example.com';
 process.env.QA_FORMATTER_URL = 'http://example.com';
-process.env.UPSTASH_REDIS_REST_URL = 'http://example.com';
-process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
 process.env.SUPERFASTSAT_API_URL = 'http://example.com';
+process.env.SUPERFASTSAT_API_TOKEN = 'token';
 process.env.ORCHESTRATOR_URL = 'http://example.com';
 process.env.ORCHESTRATOR_SECRET = 'secret';
 process.env.SCHEDULER_SECRET = 'sched-secret';
@@ -46,4 +46,3 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
 
   console.log('selectUnits combination tests passed');
 })();
-

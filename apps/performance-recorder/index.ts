@@ -1,14 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { Redis } from '@upstash/redis';
-import {
-  UPSTASH_REDIS_REST_URL,
-  UPSTASH_REDIS_REST_TOKEN,
-} from '../../packages/shared/config';
-
-export const redis = new Redis({
-  url: UPSTASH_REDIS_REST_URL,
-  token: UPSTASH_REDIS_REST_TOKEN,
-});
+import { supabase } from '../../packages/shared/supabase';
 
 export const LAST_SCORES_TTL = parseInt(
   process.env.LAST_SCORES_TTL ?? '604800',
@@ -17,19 +8,35 @@ export const LAST_SCORES_TTL = parseInt(
 
 export async function updateLastScores(
   studentId: string,
-  score: number,
-  client = redis
+  score: number
 ) {
-  const key = `last_3_scores:${studentId}`;
-  await client.lpush(key, score);
-  await client.ltrim(key, 0, 2);
-  await client.expire(key, LAST_SCORES_TTL);
+  const { data } = await supabase
+    .from('student_recent_scores')
+    .select('scores, updated_at')
+    .eq('student_id', studentId)
+    .maybeSingle();
+
+  const existingScores = Array.isArray(data?.scores)
+    ? (data?.scores as number[])
+    : [];
+  const nextScores = [Number(score), ...existingScores]
+    .filter((value) => Number.isFinite(value))
+    .slice(0, 3);
+
+  const now = new Date().toISOString();
+
+  await supabase
+    .from('student_recent_scores')
+    .upsert({
+      student_id: studentId,
+      scores: nextScores,
+      updated_at: now,
+    });
 }
 
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
-  client = redis,
 ) {
   const {
     student_id,
@@ -51,7 +58,6 @@ export default async function handler(
     question_type?: string;
   };
   try {
-    const { supabase } = await import('../../packages/shared/supabase');
     const { data } = await supabase
       .from('performances')
       .insert({
@@ -66,7 +72,7 @@ export default async function handler(
       .select()
       .single();
 
-    await updateLastScores(student_id, score, client);
+    await updateLastScores(student_id, score);
 
     res.status(200).json({ id: data?.id });
   } catch (err:any) {

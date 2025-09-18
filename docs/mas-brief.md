@@ -9,8 +9,6 @@ Provide fully personalized SAT prep.
 
 All processes are driven by an LLM-based multi-agent system with observability and version control.
 
-The system maintains a dedicated teacher account that is manually paired with each student on the SuperfastSAT platform. Once linked, the teacher account can interact with the student and manage curriculum delivery.
-
 Note on terms: “Curriculum” refers to platform-owned content (immutable; dispatched in minutes). “Study Plan” refers to MAS-owned, versioned strategy artifacts (`study_plans`), created and revised based on performance.
 
 ## 1. Content Hierarchy & Delivery Flow
@@ -20,6 +18,7 @@ Note on terms: “Curriculum” refers to platform-owned content (immutable; dis
 - Each unit is tagged with the expected number of minutes needed to solve it.
 - When curricula are assigned to students, they remain hidden until content is explicitly **sent** on the LMS.
 - From the student's profile, the teacher can browse all available curricula, assign them, and dispatch units within the selected curriculum in minute-based volumes. Sending 10 minutes delivers enough units to total that time (e.g., ten 1‑minute questions). Curriculum titles reflect the question type (e.g., `[information and ideas] > Inferences`).
+- Manager MAS uses 커리큘럼 목록 조회 (`GET /curriculums`) and 학생 커리큘럼 수강권 지급 (`POST /courses`) to replicate that assignment flow programmatically before dispatching minutes.
 - After reviewing average correctness and confidence ratings, the teacher decides whether to keep sending units from the current curriculum or assign a new one. When a student demonstrates mastery in a question type—often 100% correctness across sufficient practice—the teacher advances to a different question type.
 
 ## 2. Agents & One-Sentence Contracts
@@ -41,12 +40,18 @@ Note on terms: “Curriculum” refers to platform-owned content (immutable; dis
 
 | Table | Key Fields | Purpose |
 |-------|------------|---------|
-| `students` | `id, name, timezone, current_studyplan_version, preferred_topics` | Manage personalization status |
-| `performances` | `id, student_id, study_plan_id, score, confidence_rating` | Source data for learning results |
-| `studyplan_drafts` (`curricula_drafts`) | `version, student_id, studyplan_json` | Proposed studyplans awaiting QA |
-| `studyplans` (`curricula`) | `version, student_id, studyplan_json, qa_user, approved_at` | Approved, version-controlled learning plan |
-| `assignments` | `id, lesson_id, student_id, questions_json, generated_by, duration_minutes` | Supplementary problem sets |
-| `dispatch_log` | `id, student_id, platform_curriculum_id, study_plan_id, sent_at, channel, status` | Operational visibility (platform + internal linkage) |
+| `students` | `id, platform_student_id, name, timezone, current_studyplan_version, preferred_topics, days_to_exam` | Canonical roster + personalization state |
+| `performances` | `id, student_id, study_plan_version_id, score, confidence_rating, captured_at, source` | Source data for learning results |
+| `assignments` | `id, student_id, study_plan_version_id, questions_json, generated_by, duration_minutes, status` | Supplemental problem sets or guidance bundles |
+| `studyplan_drafts` | `version, student_id, studyplan_json, rationale, created_by` | Proposed studyplans awaiting QA |
+| `studyplan_versions` | `version, student_id, studyplan_json, policy_version, effective_at, superseded_at` | Immutable history powering audits |
+| `studyplans` | `id, student_id, current_version_id, status, constraints_json` | Pointer to the active plan orchestrated by MAS |
+| `studyplan_progress` | `id, student_id, question_type_id, mastery_state, evidence_window_json, last_decided_at` | Rolling mastery tracking per question type |
+| `dispatch_mirror` | `student_id, platform_curriculum_id, student_curriculum_id, total_duration, remaining_duration, first_dispatched_at, last_dispatched_at` | Mirror of platform assignments for eligibility checks |
+| `daily_performance_mirror` | `student_id, scheduled_date, platform_curriculum_id, stats_json, ingestion_timestamp` | Lesson/unit performance per dispatched bundle |
+| `dispatch_log` | `id, student_id, platform_curriculum_id, study_plan_version_id, sent_at, channel, status, payload` | MAS Action Execution Log (platform API attempts + fingerprints) |
+| `decision_log` | `id, student_id, study_plan_version_id, question_type_id, decision_type, policy_version, inputs_snapshot, expected_outcome, decided_at` | MAS reasoning trace & audit trail |
+| `assessment_records` | `id, student_id, platform_curriculum_id, assessment_type, section_scores, composite_estimate, confidence, rationale` | Diagnostic & full-length exam results feeding plan revisions |
 
 Immutable rules: `performances`, `assignments`, and past studyplans can only be appended. Only `students.current_studyplan_version` may be modified.
 
@@ -77,9 +82,9 @@ run completes.
 
 | Agent | READS | WRITES |
 |-------|-------|--------|
-| Dispatcher | `students`, `studyplans`, `dispatch_log` | `dispatch_log(status)` |
+| Dispatcher | `students`, `studyplans`, `dispatch_mirror` | `dispatch_log(status)` |
 | Performance Recorder | – | `performances` |
-| Data Aggregator | `performances`, `dispatch_log`, charts 📊 | Supabase Storage `performance_summary.json` |
+| Data Aggregator | `performances`, `daily_performance_mirror`, `dispatch_mirror`, charts 📊 | Supabase Storage `performance_summary.json` |
 | Studyplan Editor | `performance_summary` | `studyplan_drafts` |
 | QA & Formatter | `studyplan_drafts` | `studyplans`, `students.current_studyplan_version` |
 | Notification Bot | Event stream | Slack |
@@ -90,7 +95,7 @@ run completes.
 |------|-------|
 | Relational DB | Supabase (PostgreSQL + RLS + pgvector) |
 | Object Storage | Supabase Storage (with optional AWS S3) |
-| Cache/STM | Upstash Redis |
+| Cache/STM | Supabase (`draft_cache`, `student_recent_scores`) |
 | Scheduling | GitHub Actions cron |
 | Runtime | Vercel Functions (Node/TS, OpenAI SDK) |
 | Observability | GitHub Actions logs + Slack Webhook (Grafana optional) |

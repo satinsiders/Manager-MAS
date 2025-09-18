@@ -10,5 +10,8 @@
     "resolveJsonModule": true,
     "outDir": "dist"
   },
-  "include": ["apps/**/*.ts"]
+  "include": [
+    "apps/**/*.ts",
+    "packages/shared/**/*.ts"
+  ]
 }

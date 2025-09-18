@@ -4,7 +4,7 @@ SuperfastSAT Multi-Agent System scaffold. This project uses the OpenAI Responses
 
 ## Official Description
 
-The system operates with its own teacher account, which is manually paired with a student account on the SuperfastSAT platform. Once linked, the teacher can browse all available curricula from the student's profile, assign curricula that remain hidden until content is explicitly sent, and dispatch units measured in expected minutes to complete. After reviewing correctness and confidence ratings, the teacher decides whether to continue the current curriculum or assign a new one. When a student demonstrates mastery in a question type—typically through perfect accuracy across sufficient practice—the teacher progresses to a different question type.
+The system calls the SuperfastSAT teacher APIs directly, browsing curricula, assigning content, and dispatching units measured in expected minutes to complete. After reviewing correctness and confidence ratings returned by the platform, MAS decides whether to continue the current curriculum or assign a new one. When a student demonstrates mastery in a question type—typically through perfect accuracy across sufficient practice—the automation progresses to a different question type.
 
 To support this workflow, the system stores its own records for:
 
@@ -34,7 +34,7 @@ To support this workflow, the system stores its own records for:
 npm install
 ```
 
-2. Copy `.env.example` to `.env` and fill in credentials for Supabase, Upstash Redis (`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`), OpenAI, Slack, set `STUDYPLAN_EDITOR_URL`, `ORCHESTRATOR_URL`, and secrets `ORCHESTRATOR_SECRET` and `SCHEDULER_SECRET`. Optionally adjust `DRAFT_TTL` (seconds for `draft:*` keys).
+2. Copy `.env.example` to `.env` and fill in credentials for Supabase, OpenAI, Slack, set `STUDYPLAN_EDITOR_URL`, `ORCHESTRATOR_URL`, add the platform base URL (`SUPERFASTSAT_API_URL`) and API access token (`SUPERFASTSAT_API_TOKEN`), configure `ASSIGNMENTS_URL` for the supplemental agent, plus secrets `ORCHESTRATOR_SECRET` and `SCHEDULER_SECRET`. Optionally adjust `DRAFT_TTL` (seconds for `draft:*` keys).
 
 3. Run type checks:
 
@@ -45,7 +45,7 @@ npm test
 ## Deployment
 
 - Vercel deploys the functions under `apps/`.
-- Supabase migrations should be applied during deployment using the Supabase CLI, e.g. `supabase db push`.
+- Supabase migrations should be applied during deployment using the Supabase CLI, e.g. `supabase db push`. The latest migration adds `platform_student_id` to `students` and `student_curriculum_id` to the platform mirrors; populate these before switching traffic to minutes-based dispatching.
 - GitHub Actions workflow `scheduler.yml` triggers the scheduler endpoint at 07:00 daily and 23:00 Friday, which in turn invokes the orchestrator with the appropriate `run_type`.
 
 ## Notes

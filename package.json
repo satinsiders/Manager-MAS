@@ -4,11 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsc -p tsconfig.json --noEmit && tsx apps/curriculum-editor/index.test.ts && tsx apps/qa-formatter/index.test.ts && tsx apps/lesson-picker/index.test.ts && tsx apps/dispatcher/index.test.ts && tsx apps/orchestrator/index.test.ts && tsx apps/performance-recorder/index.test.ts && tsx apps/data-aggregator/index.test.ts && tsx apps/notification-bot/index.test.ts && tsx apps/scheduler/index.test.ts && tsx packages/shared/memory.test.ts"
+    "test": "tsc -p tsconfig.json --noEmit && tsx apps/curriculum-editor/index.test.ts && tsx apps/qa-formatter/index.test.ts && tsx apps/lesson-picker/index.test.ts && tsx apps/dispatcher/index.test.ts && tsx apps/platform-sync/index.test.ts && tsx apps/orchestrator/index.test.ts && tsx apps/performance-recorder/index.test.ts && tsx apps/data-aggregator/index.test.ts && tsx apps/notification-bot/index.test.ts && tsx apps/scheduler/index.test.ts && tsx packages/shared/memory.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
-    "@upstash/redis": "^1.22.0",
     "@vercel/node": "^2.10.0",
     "ajv": "^8.12.0",
     "ajv-formats": "^2.1.1",

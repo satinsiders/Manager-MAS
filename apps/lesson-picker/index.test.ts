@@ -8,24 +8,23 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'key';
 process.env.NOTIFICATION_BOT_URL = 'http://example.com';
 process.env.LESSON_PICKER_URL = 'http://example.com';
 process.env.DISPATCHER_URL = 'http://example.com';
+process.env.ASSIGNMENTS_URL = 'http://example.com';
 process.env.DATA_AGGREGATOR_URL = 'http://example.com';
 process.env.CURRICULUM_EDITOR_URL = 'http://example.com';
 process.env.QA_FORMATTER_URL = 'http://example.com';
-process.env.UPSTASH_REDIS_REST_URL = 'http://example.com';
-process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
 process.env.SUPERFASTSAT_API_URL = 'http://example.com';
+process.env.SUPERFASTSAT_API_TOKEN = 'token';
 process.env.ORCHESTRATOR_URL = 'http://example.com';
 process.env.ORCHESTRATOR_SECRET = 'secret';
 process.env.SCHEDULER_SECRET = 'sched-secret';
 
-class MockRedis {
-  async lrange(_key: string, _start: number, _end: number) {
-    return ['80', '70', '60'];
-  }
-}
-
 let rpcArgs: any = null;
 let progressRows: any[] = [];
+let recentScoresRow: any = {
+  student_id: 'student1',
+  scores: [80, 70, 60],
+  updated_at: new Date().toISOString(),
+};
 
 function baseFrom(table: string) {
   if (table === 'students') {
@@ -164,6 +163,30 @@ function baseFrom(table: string) {
           }
         };
       }
+    };
+  }
+  if (table === 'student_recent_scores') {
+    return {
+      select() {
+        const chain: any = {
+          filter: null,
+          eq(_column: string, value: string) {
+            this.filter = value;
+            return this;
+          },
+          async maybeSingle() {
+            return {
+              data:
+                this.filter === recentScoresRow.student_id ? recentScoresRow : null,
+            };
+          },
+        };
+        return chain;
+      },
+      upsert(payload: any) {
+        recentScoresRow = payload;
+        return Promise.resolve({ data: payload });
+      },
     };
   }
   return {} as any;
@@ -320,6 +343,30 @@ function createSupabaseWithAssignments(onInsert: (fields: any) => Promise<void>)
           }
         };
       }
+      if (table === 'student_recent_scores') {
+        return {
+          select() {
+          const chain: any = {
+            filter: null,
+            eq(_column: string, value: string) {
+              this.filter = value;
+              return this;
+            },
+            async maybeSingle() {
+              return {
+                data:
+                  this.filter === recentScoresRow.student_id ? recentScoresRow : null,
+              };
+            },
+          };
+            return chain;
+          },
+          upsert(payload: any) {
+            recentScoresRow = payload;
+            return Promise.resolve({ data: payload });
+          },
+        };
+      }
       return {} as any;
     },
     async rpc(fn: string, args: any) {
@@ -355,12 +402,12 @@ class MockOpenAI {
   });
   progressRows = [];
   const result = await selectNextLesson('student1', 2, {
-    redis: new MockRedis() as any,
     supabase: supabase as any,
     openai: new MockOpenAI() as any
   });
   assert.equal(result.next_lesson_id, 'l3');
   assert.equal(result.minutes, 15);
+  if (!result.units) throw new Error('expected units in result');
   assert.equal(result.units[0].id, 'u1');
   assert.equal(rpcArgs.fn, 'match_lessons');
   assert.equal(rpcArgs.args.query_embedding.length, 1536);
@@ -378,7 +425,6 @@ class MockOpenAI {
   });
   progressRows = [];
   const result2 = await selectNextLesson('student1', 2, {
-    redis: new MockRedis() as any,
     supabase: failingSupabase as any,
     openai: new MockOpenAI() as any
   });
@@ -389,7 +435,6 @@ class MockOpenAI {
   const supabaseAssign = createSupabaseWithAssignments(async () => {});
   progressRows = [];
   const result3 = (await selectNextLesson('student1', 2, {
-    redis: new MockRedis() as any,
     supabase: supabaseAssign as any,
     openai: new MockOpenAI() as any
   })) as any;
@@ -402,7 +447,6 @@ class MockOpenAI {
   const avoidGeometry = (lesson: any) => lesson.topic !== 'geometry';
   progressRows = [];
   const result4 = await selectNextLesson('student1', 2, {
-    redis: new MockRedis() as any,
     supabase: supabaseRules as any,
     openai: new MockOpenAI() as any,
   }, [avoidGeometry]);
@@ -412,7 +456,6 @@ class MockOpenAI {
   const limitJump = (lesson: any) => Math.abs(lesson.difficulty - 1) <= 1;
   progressRows = [];
   const result5 = await selectNextLesson('student1', 2, {
-    redis: new MockRedis() as any,
     supabase: supabaseRules as any,
     openai: new MockOpenAI() as any,
   }, [limitJump]);
@@ -421,7 +464,6 @@ class MockOpenAI {
   // Mastery filtering: if the selected lesson's question type is mastered, request a new curriculum
   progressRows = [{ question_type: 'geometry' }];
   const result6 = (await selectNextLesson('student1', 2, {
-    redis: new MockRedis() as any,
     supabase: supabase as any,
     openai: new MockOpenAI() as any
   })) as any;
@@ -433,7 +475,6 @@ class MockOpenAI {
     { question_type: 'algebra' }
   ];
   const result7 = await selectNextLesson('student1', 2, {
-    redis: new MockRedis() as any,
     supabase: supabase as any,
     openai: new MockOpenAI() as any
   });

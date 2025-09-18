@@ -1,6 +1,17 @@
 -- Study plan progress storage and compatibility view
 create extension if not exists pgcrypto;
 
+-- Ensure curricula.id can be referenced by foreign keys
+update curricula
+  set id = gen_random_uuid()
+  where id is null;
+
+alter table curricula
+  alter column id set default gen_random_uuid(),
+  alter column id set not null;
+
+create unique index if not exists curricula_id_key on curricula(id);
+
 create table if not exists study_plan_progress (
   id uuid primary key default gen_random_uuid(),
   student_id uuid not null references students(id) on delete restrict,
@@ -29,4 +40,3 @@ select
 from study_plan_progress spp
 join students s on s.id = spp.student_id
 join curricula c on c.id = spp.study_plan_id and c.student_id = s.id and c.version = s.current_curriculum_version;
-

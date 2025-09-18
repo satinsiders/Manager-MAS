@@ -77,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         `and \"notes\".\nPerformance Summary:\n${summaryText}\nCandidate Lessons:\n${lessonsText}`;
 
       const completion = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-5',
         messages: [{ role: 'user', content: prompt }]
       });
       const llmResponse = completion.choices[0]?.message?.content || '{}';

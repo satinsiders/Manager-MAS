@@ -3,6 +3,7 @@ import { supabase } from '../../packages/shared/supabase';
 import {
   LESSON_PICKER_URL,
   DISPATCHER_URL,
+  ASSIGNMENTS_URL,
   DATA_AGGREGATOR_URL,
   CURRICULUM_EDITOR_URL,
   QA_FORMATTER_URL,
@@ -36,6 +37,24 @@ function buildDailySteps(): StepDescriptor<{ id: number; current_curriculum_vers
         student_id: student.id,
         curriculum_version: student.current_curriculum_version
       })
+    },
+    {
+      url: ASSIGNMENTS_URL,
+      label: 'assignments',
+      buildBody: (student, ctx) => {
+        if (!ctx) return undefined;
+        const hasUnits = Array.isArray(ctx.units) && ctx.units.length > 0;
+        const hasMinutes = typeof ctx.minutes === 'number' && ctx.minutes > 0;
+        if (!hasUnits && !hasMinutes) return undefined;
+        return {
+          student_id: student.id,
+          study_plan_version: student.current_curriculum_version,
+          units: hasUnits ? ctx.units : undefined,
+          minutes: hasMinutes ? ctx.minutes : undefined,
+          decision_id: ctx.decision_id ?? null,
+          next_lesson_id: ctx.next_lesson_id ?? null,
+        };
+      },
     },
     {
       url: DISPATCHER_URL,

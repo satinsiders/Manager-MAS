@@ -1,5 +1,5 @@
 ## 1) Scope & Roles
-- Platform (external system, via APIs 1–5)
+- Platform (external system, via published APIs)
   - Source of truth for: curriculum assignment/dispatch and day-level learning results aggregated by the platform (lesson-level averages, units sent).
   - Actions: assign curriculum, dispatch minutes, list dispatched curricula, list students, return per-day learning stats.
 
@@ -14,112 +14,83 @@
 
 
 ## 2) Platform API Integration (what each API must deliver / how MAS uses it)
-### API 1. Curriculum Assignment API
-**Purpose:** Assign a curriculum to a specific student.
+### Currently available (per latest teacher API guide)
+#### 커리큘럼 목록 조회 — `GET /curriculums`
+**Purpose:** fetch the catalog of assignable curricula for the teacher account.
 
+**Key payload:** `id`, `originId`, `title`, `createdAt` (immutable curriculum metadata).
 
-**Details:**
+**MAS use:** refresh Supabase catalog mirrors, map platform curriculum IDs to taxonomy, and power search/selection before assignment.
 
+#### 학생 커리큘럼 수강권 지급 — `POST /courses`
+**Purpose:** grant a selected curriculum to a student, creating a `studentCurriculum` record.
 
-The curriculum comes from a catalog of available materials (e.g., “Inference Guidance,” “Practice Questions (Hard),” etc.).
+**Request contract:** `{ curriculumId, studentId }` with 200 OK (no body) on success.
 
+**MAS use:** orchestrated assignment flow calls this after planning chooses the next curriculum; log response status and verify via 학생 커리큘럼 목록 조회.
 
-Once assigned, the curriculum is linked to the student’s account but is not yet visible to the student until explicitly dispatched.
+#### 학생 커리큘럼 목록 조회 — `GET /student-curriculums`
+**Purpose:** enumerate every curriculum already linked to a student and expose its remaining workload.
 
+**Key payload:** `remainingDuration`, `totalDuration`, `isStopped`, `lessonTotalCount`, and metadata (`title`, `curriculumId`, timestamps).
 
-**Use Case:** When the teacher (or Manager MAS) decides that a student should begin working on a new curriculum, this API creates the assignment.
+**MAS use:** confirm new assignments from 학생 커리큘럼 수강권 지급, drive eligibility checks before dispatching minutes, choose which curriculum still has inventory, and mirror assignment state into Supabase.
 
+#### 학습분량 설정 — `POST /study-schedules/learning-volumes`
+**Purpose:** dispatch additional minutes from a specific student-curriculum pair on a given date.
 
+**Request contract:** `{ studentCurriculumId, scheduledDate (YYYY-MM-DD), duration (minutes) }` with 201 Created (no body) when successful.
 
-### API 2. Study Load Dispatch API
-**Purpose:** Send a selected portion of an assigned curriculum to the student, measured in minutes.
+**MAS use:** orchestrated dispatcher calls this endpoint after planning daily workload; response status is logged as the canonical proof of delivery.
 
+#### 학생 목록 조회 — `GET /students`
+**Purpose:** retrieve the roster of students tied to the teacher account, including validity flags.
 
-**Details:**
+**Key payload:** `id`, `studySchedule`, `isValid`, and `user` fields (`id`, `name`, `email`).
 
+**MAS use:** maintain the student directory, confirm active matches before scheduling, and refresh Supabase mirrors of roster metadata.
 
-Each question within the curriculum has an “expected minutes to complete” value.
+#### 학습스케줄 목록 조회 — `GET /teacher/study-schedules`
+**Purpose:** fetch the per-day schedule bundles alongside lesson/unit-level performance signals.
 
+**Key payload:** top-level `studySchedule` (date/time window, total minutes, student info) and nested `studyLessons` → `studyUnits` with correctness and confidence values.
 
-MAS specifies how many minutes’ worth of content should be dispatched (e.g., 15 minutes from the “Inference Guidance” curriculum).
-
-
-The API ensures the requested minutes are within the remaining workload.
-
-
-**Use Case:** Daily study dispatch — MAS decides how many minutes of which curriculum to send.
-
-
-
-### API 3. Student Curriculum Dispatch List API
-**Purpose:** Retrieve the list of all curricula already dispatched to a student, along with progress.
-
-
-**Details:**
-
-
-**For each dispatched curriculum:**
-
-
-- Curriculum name/title
-
-
-- Total study load (minutes or units)
-
-
-- Remaining study load (minutes or units)
-
-
-**Use Case:** MAS checks whether there is enough content left to continue dispatching from a given curriculum, or whether it needs to assign a new one.
-
-
-
-### API 4. Student Information API
-**Purpose:** Retrieve the roster of students connected to the teacher account.
-
-
-**Details:**
-
-
-Student name
-
-
-Student email
-
-
-Student identifier (unique key for API operations)
-
-
-**Use Case:** MAS and teacher account use this API to look up students and link decisions/actions to the correct student.
-
-
-
-### API 5. Student Daily Performance API
-**Purpose:** Provide a performance summary for each student within the dispatched curriculum bundles of a given day.
-
-
-**Details:**
-
-
-**For each dispatched lesson/bundle:**
-
-
-- Average correctness (percentage of questions correct)
-
-
-- Average confidence rating (self-reported by student)
-
-
-- Number of units included in the dispatched lesson
-
-
-**Use Case:** MAS evaluates whether the student is performing well, needs remediation, or has reached mastery — and decides what to dispatch next.
-
+**MAS use:** derive daily performance summaries, update mastery trackers, and capture dispatch fingerprints (lesson/unit IDs) for idempotency.
 
 
 ## 3) Supabase Data Model (authoritative store for strategy, mastery, and auditing)
 Below are entities and key attributes (described in plain English, not field names), plus relationships.
-A. 
+A. Student & Performance Core
+Students
+
+
+Own the canonical record per learner: Supabase `id`, platform student identifier, pairing metadata (match ID, teacher_id), name/email, timezone, exam target, and personalization preferences.
+
+
+Track derived fields used for automation: `current_study_plan_id`, `current_study_plan_version`, `preferred_topics`, `days_to_exam`, and opt-in flags for human overrides.
+
+
+Performance Ledger
+
+
+Append-only log of daily/weekly performance snapshots from the platform or manual score entries (`student_id`, `study_plan_version_id`, score metrics, confidence rating, captured_at, source system).
+
+
+Assignments
+
+
+Records of supplemental problem sets or guidance packets produced by MAS (`id`, `student_id`, `study_plan_version_id`, `platform_curriculum_id`, `duration_minutes`, `questions_json`, `generated_by`, `status`).
+
+
+Study Plan Drafts
+
+
+Staging area for proposed study plan updates before QA approval (`student_id`, draft `version`, raw JSON payload, rationale, created_by, expires_at). Links forward to the immutable Study Plan Versions described below once approved.
+
+Short-Term Automation State
+
+
+`draft_cache` holds temporary orchestration context (keys prefixed with `draft:*`), including an `expires_at` timestamp so entries self-expire after the run. `student_recent_scores` stores the last three performance scores per student for quick lookups by the lesson picker.
 
 B. Taxonomy & Catalog Mirrors
 Question Type Taxonomy
@@ -142,6 +113,9 @@ Raw title (as returned) mapping to Question Type Taxonomy
 
 
 Curriculum subtype (e.g., guidance, practice (easy/medium/hard), diagnostic, full-length exam)
+
+Ingestion: poll via 커리큘럼 목록 조회 and upsert by `id`; retain `originId` for joins back to the platform catalog.
+
 Relationships: Each Catalog entry maps to exactly one Question Type in the taxonomy.
 
 C. Study Planning & Mastery
@@ -208,10 +182,13 @@ Progress entries reference the relevant Question Type.
 
 
 D. Platform Data Mirrors (for decision support and analytics)
-Dispatch Mirror (from API 3)
+Dispatch Mirror (from 학생 커리큘럼 목록 조회)
 
 
 Reference to Student and external curriculum identifier
+
+
+Platform student-curriculum identifier (returned by 학생 커리큘럼 목록 조회)
 
 
 Curriculum title (raw), parsed Question Type
@@ -226,7 +203,7 @@ First/most recent dispatch timestamps
 Derivable: cumulative minutes dispatched (if provided), bundles count
 
 
-Daily Performance Mirror (from API 5)
+Daily Performance Mirror (from 학습스케줄 목록 조회)
 
 
 Reference to Student and date
@@ -245,7 +222,7 @@ Aggregated level per day to support trend queries
 
 
 Relationships:
-Dispatch Mirror links to Curriculum Catalog Mirror (by external curriculum identifier) and through it to Question Type.
+Dispatch Mirror links to Curriculum Catalog Mirror (by external curriculum identifier) and through it to Question Type; student_curriculum_id maintains uniqueness per learner assignment.
 
 
 Daily Performance Mirror links to both Student and Curriculum (and to Taxonomy via Catalog).
@@ -307,10 +284,10 @@ MAS Action Execution Log
 Link to the Decision Log entry
 
 
-Action attempt status (success/failure), API used (assignment vs. dispatch), timestamps
+Action attempt status (success/failure), platform endpoint used (학습분량 설정 vs. 학생 커리큘럼 수강권 지급), timestamps
 
 
-Returned identifiers (external curriculum identifier, lesson/bundle reference)
+Returned identifiers (external curriculum identifier, studentCurriculumId, lesson/bundle reference); for 수강권 지급 log the requested `curriculumId` and the resulting `studentCurriculumId` observed via 학생 커리큘럼 목록 조회
 
 
 Actual dispatched minutes (vs. planned)
@@ -348,7 +325,7 @@ Study Plan → Progress (per Question Type): one-to-many.
 Question Type Taxonomy ↔ Curriculum Catalog Mirror: one-to-many.
 
 
-Student → Dispatch Mirror: one-to-many (per curriculum).
+Student → Dispatch Mirror: one-to-many (per platform student-curriculum pair).
 
 
 Student → Daily Performance Mirror: one-to-many (per day, per bundle).
@@ -357,13 +334,13 @@ Student → Daily Performance Mirror: one-to-many (per day, per bundle).
 Assessment Record → Study Plan Version: informs creation of new versions.
 
 
-MAS Decision Log → MAS Action Execution Log: one-to-many (one decision can yield multiple API actions).
+MAS Decision Log → MAS Action Execution Log: one-to-many (one decision can yield multiple platform calls).
 
 
 
 ## 5) Manager MAS Operational Flow
 Daily cycle (per student)
-Sync intake (read APIs 3, 5, and 4 as needed):
+Sync intake (call 커리큘럼 목록 조회 for catalog refresh when needed, plus 학생 커리큘럼 목록 조회, 학습스케줄 목록 조회, and 학생 목록 조회):
 
 
 Pull dispatched curricula with total/remaining workload.
@@ -411,10 +388,10 @@ Remediate (switch to guidance/easier practice) if low correctness or confidence.
 Elevate difficulty if sustained high performance and near mastery.
 
 
-Assign new curriculum (API 1) when switching track or exhausting remaining workload.
+Assign new curriculum (lookup via 커리큘럼 목록 조회, then call 학생 커리큘럼 수강권 지급) when switching track or exhausting remaining workload.
 
 
-Dispatch minutes (API 2) against the chosen curriculum, selecting a minute-bundle that fits the daily target.
+Dispatch minutes via 학습분량 설정 against the chosen curriculum, selecting a minute-bundle that fits the daily target.
 
 
 Record decision and execution:
@@ -423,7 +400,7 @@ Record decision and execution:
 Write a MAS Decision Log with inputs, policy version, and expected outcome.
 
 
-On API success, write an Action Execution Log with returned identifiers and actual dispatched minutes.
+On platform success, write an Action Execution Log with identifiers (studentCurriculumId, date) and the minutes requested/dispatched.
 
 
 Assessment handling (when applicable):
@@ -482,7 +459,7 @@ Maintain a stable mapping table so renames or formatting changes in titles can b
 Mirroring strategy:
 
 
-Treat API 3 and 5 as sources of truth and mirror them with ingestion timestamps.
+Treat 커리큘럼 목록 조회, 학생 커리큘럼 목록 조회, and 학습스케줄 목록 조회 as sources of truth and mirror them with ingestion timestamps.
 
 
 If records change retroactively (late aggregation corrections), allow upserts keyed by student, date, curriculum, and bundle reference.
@@ -496,10 +473,10 @@ MAS Action Execution Log must store platform response fingerprints (e.g., dispat
 
 
 ## 8) Error Handling & Edge Cases
-Exhausted workload: Switch curriculum (API 1) before attempting dispatch (API 2).
+Exhausted workload: select the next curriculum via 커리큘럼 목록 조회 and assign it with 학생 커리큘럼 수강권 지급 before attempting another 학습분량 설정 call.
 
 
-Missing performance data: If API 5 is delayed, MAS can use the latest available window; mark decision inputs as “partial.”
+Missing performance data: If 학습스케줄 목록 조회 is delayed, MAS can use the latest available window; mark decision inputs as “partial.”
 
 
 Conflicting assignments: If multiple curricula of the same Question Type are assigned, MAS prefers the one with the least remaining workload or the one aligned to the current stage (guidance → practice tier).
@@ -548,7 +525,7 @@ Cohort analytics: average time-to-mastery per Question Type; effect of guidance 
 MAS performance: decision distribution; success rate of planned vs. executed actions; re-dispatch due to errors; uplift after plan revisions.
 
 
-Data quality: late or missing API 5 entries; taxonomy parsing mismatches; duplicate dispatches caught by idempotency.
+Data quality: late or missing 학습스케줄 목록 조회 entries; taxonomy parsing mismatches; duplicate dispatches caught by idempotency.
 
 
 
@@ -556,10 +533,13 @@ Data quality: late or missing API 5 entries; taxonomy parsing mismatches; duplic
 Platform guarantees unique, stable identifiers for students, curricula, and dispatched bundles/lessons.
 
 
-API 2 can return the actual dispatched minutes (may differ from requested) and a bundle/lesson reference.
+학생 커리큘럼 목록 조회 always returns a stable `id` (studentCurriculumId) for use with 학습분량 설정.
 
+학습분량 설정 currently acknowledges requests with 201 (no body); platform to confirm whether future responses will include actual dispatched minutes and bundle references.
 
-API 5 aggregates at the lesson/bundle granularity and per day; if intraday breakdown exists, MAS will still consume the day-level summary.
+학생 커리큘럼 수강권 지급 responds with 200 (no body); MAS confirms success via subsequent 학생 커리큘럼 목록 조회 sync.
+
+학습스케줄 목록 조회 aggregates at the lesson/bundle granularity and per day; if intraday breakdown exists, MAS will still consume the day-level summary.
 
 
 Diagnostic and full-length exam curricula are reliably distinguishable (either explicit type labels or unambiguous naming conventions).
@@ -571,7 +551,10 @@ The platform respects “hidden until sent” behavior for assigned curricula, a
 
 ## Quick Ownership Summary
 ### Handled by Platform APIs:
-- Assign curriculum to student (hidden or visible).
+- Assign curriculum to student (via 학생 커리큘럼 수강권 지급).
+
+
+- List available curricula for the teacher account.
 
 
 - Dispatch content measured in minutes.
