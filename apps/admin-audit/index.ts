@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../../packages/shared/vercel';
 import { supabase } from '../../packages/shared/supabase';
 
 function isoOrNull(v?: string): string | null {

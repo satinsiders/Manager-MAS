@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../../packages/shared/vercel';
 import { randomUUID } from 'crypto';
 import { supabase } from '../../packages/shared/supabase';
 
@@ -34,14 +34,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     units,
     minutes,
     decision_id,
-    next_lesson_id,
+    next_curriculum_id,
   } = (req.body || {}) as {
     student_id?: string;
     study_plan_version?: number | null;
     units?: UnitInput[];
     minutes?: number | null;
     decision_id?: string | null;
-    next_lesson_id?: string | null;
+    next_curriculum_id?: string | null;
   };
 
   if (!student_id) {
@@ -58,6 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       student_id,
       study_plan_version_id: study_plan_version ?? null,
       platform_curriculum_id: null,
+      lesson_id: next_curriculum_id ?? null,
       duration_minutes: duration,
       questions_json: normalizedUnits,
       generated_by: 'assignments-agent',
@@ -77,11 +78,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       units,
       minutes: duration,
       decision_id: decision_id ?? null,
-      next_lesson_id: next_lesson_id ?? null,
+      next_curriculum_id: next_curriculum_id ?? null,
     });
   } catch (err: any) {
     console.error(err);
     res.status(500).json({ error: 'assignment generation failed' });
   }
 }
-

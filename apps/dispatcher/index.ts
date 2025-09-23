@@ -1,7 +1,6 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../../packages/shared/vercel';
 import { supabase } from '../../packages/shared/supabase';
 import { createHash } from 'crypto';
-import { SUPERFASTSAT_API_URL } from '../../packages/shared/config';
 import { platformFetch } from '../../packages/shared/platform';
 import {
   assignCurriculum,
@@ -24,14 +23,23 @@ export {
 } from './curriculum';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { student_id, minutes = 0, units: presetUnits, next_lesson_id, decision_id } =
-    req.body as {
-      student_id: string;
-      minutes?: number;
-      units?: any[];
-      next_lesson_id?: string;
-      decision_id?: string;
-    };
+  const {
+    student_id,
+    minutes = 0,
+    units: presetUnits,
+    next_curriculum_id,
+    question_type: incomingQuestionType,
+    decision_id,
+    reason,
+  } = req.body as {
+    student_id: string;
+    minutes?: number;
+    units?: any[];
+    next_curriculum_id?: string;
+    question_type?: string | null;
+    decision_id?: string;
+    reason?: string | null;
+  };
   let requestedMinutes = minutes || 0;
 
   try {
@@ -53,35 +61,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!plan) throw new Error('study plan not found');
 
-    let selected: { units: any[]; total: number; lastLessonId?: string } = {
-      units: presetUnits ?? [],
+    const incomingUnits = Array.isArray(presetUnits) ? presetUnits : [];
+    let selected: { units: any[]; total: number; lastCurriculumId?: string } = {
+      units: incomingUnits,
       total: 0,
-      lastLessonId: undefined,
+      lastCurriculumId: undefined,
     };
 
-    if (!presetUnits) {
+    if (!incomingUnits.length && plan.study_plan) {
       selected = await selectUnitsImpl(plan.study_plan, minutes);
     } else {
-      selected.total = presetUnits.reduce(
-        (sum, u: any) => sum + (Number(u.duration_minutes) || 0),
-        0
-      );
-      if (presetUnits.length > 0) {
-        const lastUnit = presetUnits[presetUnits.length - 1];
-        selected.lastLessonId = lastUnit.lesson_id || lastUnit.lessonId;
+      selected.total = incomingUnits.reduce((sum, u: any) => sum + (Number(u.duration_minutes) || 0), 0);
+      if (incomingUnits.length > 0) {
+        const lastUnit = incomingUnits[incomingUnits.length - 1];
+        selected.lastCurriculumId = lastUnit.lesson_id || lastUnit.lessonId;
       }
     }
 
-    let question_type: string | undefined;
-    if (selected.lastLessonId) {
-      const { data: lesson } = await supabase
-        .from('lessons')
-        .select('topic')
-        .eq('id', selected.lastLessonId)
-        .single();
-      question_type = lesson?.topic ?? undefined;
+    let curriculumId = next_curriculum_id ?? selected.lastCurriculumId ?? null;
+
+    let question_type: string | undefined = incomingQuestionType ?? undefined;
+    if (!question_type && curriculumId) {
+      const { data: catalog } = await supabase
+        .from('curriculum_catalog')
+        .select('question_types(canonical_path)')
+        .eq('external_curriculum_id', curriculumId)
+        .maybeSingle();
+      question_type = (catalog as any)?.question_types?.canonical_path ?? undefined;
     }
-    // No metadata fallback; question type derives from curriculum title (lesson topic)
 
     let status = 'failed';
     let dispatchLogId: string | undefined;
@@ -90,7 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let platform_bundle_ref: string | null = null;
     let actual_minutes: number | null = null;
 
-    if (!presetUnits && requestedMinutes > 0) {
+    if (!incomingUnits.length && requestedMinutes > 0) {
       platform_curriculum_id = await resolvePlatformCurriculumId(question_type);
       let remainingMinutes: number | null = null;
 
@@ -125,6 +132,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               const record = await ensureStudentCurriculumRecord(student_id, platformStudentId, candidate);
               platform_curriculum_id = candidate;
               platform_student_curriculum_id = record.studentCurriculumId;
+              curriculumId = candidate;
               if (typeof record.remainingMinutes === 'number') {
                 remainingMinutes = record.remainingMinutes;
                 if (remainingMinutes > 0 && remainingMinutes < requestedMinutes) {
@@ -178,6 +186,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           status = response.ok ? 'sent' : 'failed';
           platform_bundle_ref = null;
           actual_minutes = response.ok ? requestedMinutes : null;
+          curriculumId = platform_curriculum_id ?? curriculumId;
           if (!response.ok) {
             const errText = await response.text().catch(() => '');
             console.error('learning volume dispatch failed', response.status, errText);
@@ -197,8 +206,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               platform_student_curriculum_id,
               platform_bundle_ref,
               question_type,
-              ...(next_lesson_id ? { requested_lesson_id: next_lesson_id } : {}),
-              ...(selected.lastLessonId ? { lesson_id: selected.lastLessonId } : {}),
+              ...(curriculumId ? { requested_lesson_id: curriculumId, lesson_id: curriculumId } : {}),
+              ...(reason ? { notes: reason } : {}),
               ...(response.ok ? { sent_at: new Date().toISOString() } : {}),
             })
             .select('id')
@@ -223,6 +232,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   platform_student_id: platformStudentId,
                   platform_curriculum_id,
                   minutes: requestedMinutes,
+                  curriculum_id: curriculumId ?? undefined,
                 },
                 status,
                 response: { platform_bundle_ref, actual_minutes },
@@ -238,14 +248,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             /* ignore */
           }
         }
-      }
     }
+  }
+
+    let fallbackCurriculumId = curriculumId ?? selected.lastCurriculumId ?? null;
 
     if (!dispatchLogId) {
       // Fallback: send concrete units via legacy units endpoint
-      const response = await fetch(`${SUPERFASTSAT_API_URL}/units`, {
+      const response = await platformFetch('/units', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ units: selected.units }),
       });
       status = response.ok ? 'sent' : 'failed';
@@ -262,8 +273,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           platform_curriculum_id,
           platform_student_curriculum_id,
           question_type,
-          ...(next_lesson_id ? { requested_lesson_id: next_lesson_id } : {}),
-          ...(selected.lastLessonId ? { lesson_id: selected.lastLessonId } : {}),
+          ...(fallbackCurriculumId ? { requested_lesson_id: fallbackCurriculumId, lesson_id: fallbackCurriculumId } : {}),
+          ...(reason ? { notes: reason } : {}),
           ...(response.ok ? { sent_at: new Date().toISOString() } : {}),
         })
         .select('id')
@@ -285,6 +296,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             requested_minutes: requestedMinutes || selected.total,
             actual_minutes: selected.total,
             dispatch_log_id: dispatchLogId ?? null,
+            ...(fallbackCurriculumId ? { curriculum_id: fallbackCurriculumId } : {}),
           });
       } catch {
         /* ignore */
@@ -298,7 +310,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from('students')
       .update({
         last_lesson_sent: new Date().toISOString(),
-        ...(selected.lastLessonId ? { last_lesson_id: selected.lastLessonId } : {}),
+        ...(curriculumId || fallbackCurriculumId
+          ? { last_lesson_id: curriculumId ?? fallbackCurriculumId }
+          : {}),
       })
       .eq('id', student_id);
 

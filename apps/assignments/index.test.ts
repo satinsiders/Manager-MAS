@@ -56,6 +56,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
         study_plan_version: 2,
         minutes: 12,
         units: [{ id: 'u1', duration_minutes: 6 }],
+        next_curriculum_id: 'c1',
       },
     } as any,
     res,
@@ -65,5 +66,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   assert.ok(jsonBody.assignment_id);
   assert.equal(inserted[0].student_id, 's1');
   assert.equal(inserted[0].duration_minutes, 12);
+  assert.equal(inserted[0].lesson_id, 'c1');
+  assert.equal(jsonBody.next_curriculum_id, 'c1');
   console.log('Assignments agent creates records');
 })();

@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../../packages/shared/vercel';
 import Ajv from 'ajv';
 import addKeywords from 'ajv-keywords';
 import addFormats from 'ajv-formats';
@@ -10,33 +10,33 @@ addFormats(ajv);
 addKeywords(ajv, ['uniqueItemProperties']);
 const validate = ajv.compile(schema);
 
-function enforceStyle(curriculum: any) {
-  if (typeof curriculum.notes === 'string') {
-    let notes = curriculum.notes.trim();
+function enforceStyle(plan: any) {
+  if (typeof plan.notes === 'string') {
+    let notes = plan.notes.trim();
     if (notes) {
       notes = notes.charAt(0).toUpperCase() + notes.slice(1);
       if (!notes.endsWith('.')) notes += '.';
-      curriculum.notes = notes;
+      plan.notes = notes;
     }
   }
-  if (Array.isArray(curriculum.lessons)) {
-    for (const lesson of curriculum.lessons) {
-      if (Array.isArray(lesson.units)) {
+  if (Array.isArray(plan.curricula)) {
+    for (const curriculum of plan.curricula) {
+      if (typeof curriculum.strategy === 'string') {
+        curriculum.strategy = curriculum.strategy.trim();
+      }
+      if (Array.isArray(curriculum.units)) {
         const seen = new Set<string>();
-        lesson.units = lesson.units.map((unit: any) => {
+        curriculum.units = curriculum.units.map((unit: any) => {
           if (!unit.id || unit.duration_minutes == null) {
             throw new Error('unit missing id or duration_minutes');
           }
           if (seen.has(unit.id)) {
-            throw new Error(`duplicate unit id ${unit.id} in lesson ${lesson.id}`);
+            throw new Error(`duplicate unit id ${unit.id} in curriculum ${curriculum.id}`);
           }
           seen.add(unit.id);
           return {
             ...unit,
-            duration_minutes: Math.max(
-              1,
-              Math.round(Number(unit.duration_minutes))
-            )
+            duration_minutes: Math.max(1, Math.round(Number(unit.duration_minutes))),
           };
         });
       }

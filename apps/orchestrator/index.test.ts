@@ -18,7 +18,12 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   let lessonPickerBody: any = null;
   let assignmentsBody: any = null;
   let curriculumBody: any = null;
-  let lessonPickerResp: any = { minutes: 5, next_lesson_id: 'l42' };
+  let lessonPickerResp: any = {
+    minutes: 5,
+    next_curriculum_id: 'c42',
+    question_type: 'geometry',
+    reason: 'Send geometry minutes',
+  };
   const qaBodies: any[] = [];
   let qaStatus = 200;
   const server = http.createServer((req, res) => {
@@ -178,8 +183,10 @@ process.env.NOTIFICATION_BOT_URL = `${base}/notify`;
 
   assert.equal(dispatcherBody.student_id, 1);
   assert.equal(dispatcherBody.minutes, 5);
-  assert.equal(dispatcherBody.next_lesson_id, 'l42');
+  assert.equal(dispatcherBody.next_curriculum_id, 'c42');
+  assert.equal(dispatcherBody.reason, 'Send geometry minutes');
   assert.equal(assignmentsBody.student_id, 1);
+  assert.equal(assignmentsBody.next_curriculum_id, 'c42');
   assert.equal(lessonPickerBody.curriculum_version, 2);
 
   // authorized request - units present

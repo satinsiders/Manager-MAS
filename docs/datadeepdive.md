@@ -85,7 +85,7 @@ Records of supplemental problem sets or guidance packets produced by MAS (`id`, 
 Study Plan Drafts
 
 
-Staging area for proposed study plan updates before QA approval (`student_id`, draft `version`, raw JSON payload, rationale, created_by, expires_at). Links forward to the immutable Study Plan Versions described below once approved.
+Staging area for proposed study plan updates before QA approval (`student_id`, draft `version`, raw JSON payload, rationale, created_by, expires_at). Drafts are produced by the Study Plan Editor agent (GPT‑5 Responses) after weekly aggregation, then move forward to immutable Study Plan Versions once QA approves.
 
 Short-Term Automation State
 
@@ -339,6 +339,7 @@ MAS Decision Log → MAS Action Execution Log: one-to-many (one decision can yie
 
 
 ## 5) Manager MAS Operational Flow
+The Orchestrator agent is the control plane. It triggers the daily and weekly pipelines, invokes downstream agents in sequence, and records success/failure in `service_log`. It forwards context (like the current study plan version) but does not make LLM calls. When deeper reasoning is needed, it delegates to the Study Plan Editor (GPT‑5) or other specialized agents.
 Daily cycle (per student)
 Sync intake (call 커리큘럼 목록 조회 for catalog refresh when needed, plus 학생 커리큘럼 목록 조회, 학습스케줄 목록 조회, and 학생 목록 조회):
 
@@ -362,6 +363,8 @@ Upsert into Daily Performance Mirror (per date, per bundle).
 
 
 Update Study Plan Progress rollups (rolling correctness/confidence windows per Question Type).
+
+Lesson Picker combines those rollups with the current study plan and recent scores (stored in `student_recent_scores`) to choose the next curriculum. It first filters candidates via embeddings and rule filters, then calls GPT‑5 (Responses API) with the structured options to justify the final `next_curriculum_id` and minute budget. If the model’s output is invalid, the deterministic fallback is used.
 
 
 Compute current status:

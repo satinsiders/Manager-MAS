@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../../packages/shared/vercel';
 import OpenAI from 'openai';
 import { supabase } from '../../packages/shared/supabase';
 import { OPENAI_API_KEY } from '../../packages/shared/config';
@@ -71,16 +71,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const student_id = summary.student_id || 'demo';
 
       // 3. Ask OpenAI to propose a new curriculum structure
-      const prompt =
-        `Given the performance summary and candidate lessons, propose a new curriculum ` +
-        `for the student and return JSON with \"lessons\" (each with units containing id and duration_minutes) ` +
-        `and \"notes\".\nPerformance Summary:\n${summaryText}\nCandidate Lessons:\n${lessonsText}`;
+      const prompt = `You are the Study Plan Editor for SAT prep.
+Use the student's performance summary and the candidate curriculum options to produce JSON with:
+  "curricula" – an array where each item has:
+      "id" (UUID from candidates),
+      "minutes_recommended" (positive integer minutes per daily dispatch),
+      optional "strategy" notes, and optional "units" if specific practice is required.
+  "notes" – brief study plan guidance for humans.
+Return only valid JSON.
+Performance Summary:
+${summaryText}
+Candidate Curricula:
+${lessonsText}`;
 
-      const completion = await openai.chat.completions.create({
+      const completion = await openai.responses.create({
         model: 'gpt-5',
-        messages: [{ role: 'user', content: prompt }]
+        input: prompt,
+        temperature: 0.2,
       });
-      const llmResponse = completion.choices[0]?.message?.content || '{}';
+      const llmResponse = completion.output_text || '{}';
 
       let proposal: any = {};
       try {
@@ -92,17 +101,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // 4. Determine next curriculum version for the student
       const newVersion = await getNextCurriculumVersion(student_id);
 
-      const curriculum = {
+      const defaultMinutes = 15;
+      const formattedCurricula = Array.isArray(proposal.curricula)
+        ? proposal.curricula
+            .filter((item: any) => item && item.id)
+            .map((item: any) => ({
+              id: item.id,
+              minutes_recommended: Math.max(
+                1,
+                Math.round(Number(item.minutes_recommended ?? defaultMinutes))
+              ),
+              strategy: item.strategy ?? '',
+              units: Array.isArray(item.units) ? item.units : undefined,
+            }))
+        : [];
+
+      const studyPlan = {
         version: newVersion,
         student_id,
         notes: proposal.notes || '',
-        lessons: proposal.lessons || []
+        curricula: formattedCurricula,
       };
 
       await supabase.from('curricula_drafts').insert({
         version: newVersion,
         student_id,
-        curriculum
+        curriculum: studyPlan
       });
 
       // 5. Store prompt and response for audit trail

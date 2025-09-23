@@ -23,7 +23,7 @@ const agents: AgentSpec[] = [
   {
     name: 'Lesson Picker',
     instructions:
-      'Select `next_lesson_id` and supplementary problem set for each student using vector similarity and rule filters.'
+      'Select `next_curriculum_id` and recommended minutes using embeddings plus GPT guidance.'
   },
   {
     name: 'Dispatcher',
@@ -32,7 +32,7 @@ const agents: AgentSpec[] = [
   {
     name: 'Performance Recorder',
     instructions:
-      'Append `{student_id, lesson_id, score, confidence_rating}` to the `performances` table.'
+      'Append `{student_id, curriculum_id (lesson_id), score, confidence_rating}` to the `performances` table.'
   },
   {
     name: 'Data Aggregator',
@@ -40,8 +40,8 @@ const agents: AgentSpec[] = [
       'Generate `performance_summary.json` by combining weekly performances and charts.'
   },
   {
-    name: 'Curriculum Editor',
-    instructions: 'Produce new `curriculum_v(X+1)` JSON.'
+    name: 'Study Plan Editor',
+    instructions: 'Produce the next study plan draft (`study_plan_vX`) via GPT-5 Responses.'
   },
   {
     name: 'QA & Formatter',

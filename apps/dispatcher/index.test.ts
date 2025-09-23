@@ -23,7 +23,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   const { selectUnits } = await import('./index');
 
   const curriculum = {
-    lessons: [
+    curricula: [
       { id: 'l1', units: [{ id: 'u1', duration_minutes: 3 }, { id: 'u2', duration_minutes: 3 }] },
       { id: 'l2', units: [{ id: 'u3', duration_minutes: 4 }] },
     ],

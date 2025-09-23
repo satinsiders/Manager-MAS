@@ -34,7 +34,10 @@ To support this workflow, the system stores its own records for:
 npm install
 ```
 
-2. Copy `.env.example` to `.env` and fill in credentials for Supabase, OpenAI, Slack, set `STUDYPLAN_EDITOR_URL`, `ORCHESTRATOR_URL`, add the platform base URL (`SUPERFASTSAT_API_URL`) and API access token (`SUPERFASTSAT_API_TOKEN`), configure `ASSIGNMENTS_URL` for the supplemental agent, plus secrets `ORCHESTRATOR_SECRET` and `SCHEDULER_SECRET`. Optionally adjust `DRAFT_TTL` (seconds for `draft:*` keys).
+2. Copy `.env.example` to `.env` and fill in credentials for Supabase, OpenAI, Slack, set `STUDYPLAN_EDITOR_URL`, `ORCHESTRATOR_URL`, and configure the platform base URL (`SUPERFASTSAT_API_URL`).
+   - If the platform team provides a long-lived key, set `SUPERFASTSAT_API_TOKEN`.
+   - Otherwise leave the token blank and provide the teacher login via `SUPERFASTSAT_TEACHER_EMAIL` and `SUPERFASTSAT_TEACHER_PASSWORD` to have MAS fetch a fresh key automatically (see `docs/apiguide.md`).
+   - Configure `ASSIGNMENTS_URL` for the supplemental agent, plus secrets `ORCHESTRATOR_SECRET` and `SCHEDULER_SECRET`. Optionally adjust `DRAFT_TTL` (seconds for `draft:*` keys).
 
 3. Run type checks:
 

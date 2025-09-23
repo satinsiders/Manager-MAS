@@ -9,7 +9,7 @@ Provide fully personalized SAT prep.
 
 All processes are driven by an LLM-based multi-agent system with observability and version control.
 
-Note on terms: “Curriculum” refers to platform-owned content (immutable; dispatched in minutes). “Study Plan” refers to MAS-owned, versioned strategy artifacts (`study_plans`), created and revised based on performance.
+Note on terms: “Curriculum” refers to the platform-owned scaffolding of lessons and units (immutable; dispatched in minute bundles such as “Information and Ideas > Inferences > Guidance”). “Study Plan” refers to the MAS-owned, student-specific strategy that sequences curricula and pacing rules; agents consult the study plan to decide what curriculum minutes to send each day.
 
 ## 1. Content Hierarchy & Delivery Flow
 
@@ -30,7 +30,7 @@ Note on terms: “Curriculum” refers to platform-owned content (immutable; dis
 | Dispatcher | Immediately after selection | Send curriculum units and metadata to the SuperfastSAT platform and record in `dispatch_log`. |
 | Performance Recorder | Upon score arrival | Append `{student_id, study_plan_id, score, confidence_rating}` to the `performances` table. |
 | Data Aggregator | Fri 23:00 | Generate `performance_summary.json` by combining weekly performances and charts. |
-| Studyplan Editor | After aggregation | Produce new `studyplan_v(X+1)` JSON. |
+| Study Plan Editor | After aggregation | Produce new `studyplan_v(X+1)` JSON using GPT‑5 responses. |
 | QA & Formatter | Immediately after edit | Validate JSON schema/style and update student pointers to the new version. |
 | Notification Bot | Success/failure hooks | Notify key events via Slack DM. |
 
@@ -66,8 +66,8 @@ Beyond platform data, the system separately records:
 
 | Level | Storage Location | TTL/Version | Used By |
 |-------|------------------|-------------|---------|
-| Working Memory | Vercel function process object / Redis `draft:*` | Minutes to hours | Orchestrator & current chain |
-| Short-Term Memory | Redis `last_3_scores:{id}` | ≤ 7 days | Dispatcher |
+| Working Memory | Vercel function process object | Minutes to hours | Orchestrator & current chain |
+| Short-Term Memory | Supabase tables `draft_cache`, `student_recent_scores` | Configurable (`DRAFT_TTL`, score TTL) | Orchestrator, Lesson Picker |
 | Long-Term Memory | Supabase (PostgreSQL) | Permanent, versioned | All agents |
 | External Evidence | Supabase Storage (or AWS S3), Notion | Permanent | QA & audit |
 
@@ -85,7 +85,7 @@ run completes.
 | Dispatcher | `students`, `studyplans`, `dispatch_mirror` | `dispatch_log(status)` |
 | Performance Recorder | – | `performances` |
 | Data Aggregator | `performances`, `daily_performance_mirror`, `dispatch_mirror`, charts 📊 | Supabase Storage `performance_summary.json` |
-| Studyplan Editor | `performance_summary` | `studyplan_drafts` |
+| Study Plan Editor | `performance_summary` | `studyplan_drafts` |
 | QA & Formatter | `studyplan_drafts` | `studyplans`, `students.current_studyplan_version` |
 | Notification Bot | Event stream | Slack |
 

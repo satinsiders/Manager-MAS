@@ -153,6 +153,7 @@ export async function updateStudyPlanProgress(
 ) {
   const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
   const sinceIso = since.toISOString();
+  const sinceDateOnly = sinceIso.slice(0, 10);
 
   const { data: students } = await client
     .from('students')
@@ -179,10 +180,100 @@ export async function updateStudyPlanProgress(
         .eq('student_id', studentId)
         .gte('timestamp', sinceIso);
 
+      const { data: unitRows } = await client
+        .from('daily_performance_units')
+        .select('scheduled_date, platform_curriculum_id, is_correct, confidence')
+        .eq('student_id', studentId)
+        .gte('scheduled_date', sinceDateOnly);
+
+      const { data: summaryRows } = await client
+        .from('daily_performance')
+        .select('date, external_curriculum_id, avg_correctness, avg_confidence')
+        .eq('student_id', studentId)
+        .gte('date', sinceDateOnly);
+
+      const curriculumIds = new Set<string>();
+      for (const row of unitRows ?? []) {
+        if (row?.platform_curriculum_id != null) {
+          curriculumIds.add(String(row.platform_curriculum_id));
+        }
+      }
+      for (const row of summaryRows ?? []) {
+        if (row?.external_curriculum_id != null) {
+          curriculumIds.add(String(row.external_curriculum_id));
+        }
+      }
+
+      const curriculumTypeMap = new Map<string, string>();
+      if (curriculumIds.size > 0) {
+        const { data: catalogRows } = await client
+          .from('curriculum_catalog')
+          .select('external_curriculum_id, question_types(canonical_path)')
+          .in('external_curriculum_id', Array.from(curriculumIds));
+        for (const row of catalogRows ?? []) {
+          const key = String((row as any).external_curriculum_id);
+          const canonical = (row as any).question_types?.canonical_path ?? null;
+          if (canonical) curriculumTypeMap.set(key, canonical);
+        }
+      }
+
+      const unitSamples: PerformanceRow[] = (unitRows ?? [])
+        .map((row: any) => {
+          const curriculumId =
+            row?.platform_curriculum_id != null ? String(row.platform_curriculum_id) : null;
+          if (!curriculumId) return null;
+          const questionType = curriculumTypeMap.get(curriculumId);
+          if (!questionType) return null;
+          const score =
+            typeof row?.is_correct === 'boolean' ? (row.is_correct ? 100 : 0) : null;
+          const confidence =
+            row?.confidence != null && Number.isFinite(Number(row.confidence))
+              ? Number(row.confidence) / 100
+              : null;
+          const date = row?.scheduled_date ?? null;
+          const timestamp = date ? `${date}T00:00:00.000Z` : null;
+          return {
+            question_type: questionType,
+            score,
+            confidence_rating: confidence,
+            timestamp,
+            study_plan_id: null,
+          } as PerformanceRow;
+        })
+        .filter((row): row is PerformanceRow => Boolean(row && row.question_type));
+
+      const summarySamples: PerformanceRow[] = (summaryRows ?? [])
+        .map((row: any) => {
+          const curriculumId =
+            row?.external_curriculum_id != null ? String(row.external_curriculum_id) : null;
+          if (!curriculumId) return null;
+          const questionType = curriculumTypeMap.get(curriculumId);
+          if (!questionType) return null;
+          const score =
+            row?.avg_correctness != null && Number.isFinite(Number(row.avg_correctness))
+              ? Number(row.avg_correctness)
+              : null;
+          const confidence =
+            row?.avg_confidence != null && Number.isFinite(Number(row.avg_confidence))
+              ? Number(row.avg_confidence) / 100
+              : null;
+          const date = row?.date ?? null;
+          const timestamp = date ? `${date}T00:00:00.000Z` : null;
+          return {
+            question_type: questionType,
+            score,
+            confidence_rating: confidence,
+            timestamp,
+            study_plan_id: null,
+          } as PerformanceRow;
+        })
+        .filter((row): row is PerformanceRow => Boolean(row && row.question_type));
+
       const relevant = (performanceRows ?? []).filter(
         (row: PerformanceRow) => !row.study_plan_id || row.study_plan_id === studyPlanId
       );
-      const updates = computeProgressRows(studentId, studyPlanId, relevant, lookbackDays, new Date());
+      const combined = [...relevant, ...unitSamples, ...summarySamples];
+      const updates = computeProgressRows(studentId, studyPlanId, combined, lookbackDays, new Date());
       if (updates.length) {
         await client
           .from('study_plan_progress')

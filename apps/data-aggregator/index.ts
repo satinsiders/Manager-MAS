@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../../packages/shared/vercel';
 import { createHash } from 'crypto';
 import { supabase } from '../../packages/shared/supabase';
 import { LATEST_SUMMARY_PATH } from '../../packages/shared/summary';

@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../../packages/shared/vercel';
 import { supabase } from '../../packages/shared/supabase';
 
 type SectionResult = { section: string; correct: number; total: number };

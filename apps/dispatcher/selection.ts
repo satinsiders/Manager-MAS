@@ -1,10 +1,10 @@
-export async function selectUnits(curriculum: any, minutes: number) {
-  const flat: { unit: any; lessonId: string; duration: number }[] = [];
-  for (const lesson of curriculum.lessons ?? []) {
-    for (const unit of lesson.units ?? []) {
+export async function selectUnits(plan: any, minutes: number) {
+  const flat: { unit: any; curriculumId: string; duration: number }[] = [];
+  for (const curriculum of plan.curricula ?? []) {
+    for (const unit of curriculum.units ?? []) {
       flat.push({
         unit,
-        lessonId: lesson.id,
+        curriculumId: curriculum.id,
         duration: Number(unit.duration_minutes) || 0,
       });
     }
@@ -46,9 +46,8 @@ export async function selectUnits(curriculum: any, minutes: number) {
   const indices = sums.get(chosen) ?? [];
   indices.sort((a, b) => a - b);
   const units = indices.map((i) => flat[i].unit);
-  const lastLessonId = indices.length
-    ? flat[indices[indices.length - 1]].lessonId
+  const lastCurriculumId = indices.length
+    ? flat[indices[indices.length - 1]].curriculumId
     : undefined;
-  return { units, total: chosen, lastLessonId };
+  return { units, total: chosen, lastCurriculumId };
 }
-

@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../../packages/shared/vercel';
 import { supabase } from '../../packages/shared/supabase';
 import {
   LESSON_PICKER_URL,
@@ -52,7 +52,8 @@ function buildDailySteps(): StepDescriptor<{ id: number; current_curriculum_vers
           units: hasUnits ? ctx.units : undefined,
           minutes: hasMinutes ? ctx.minutes : undefined,
           decision_id: ctx.decision_id ?? null,
-          next_lesson_id: ctx.next_lesson_id ?? null,
+          next_curriculum_id: ctx.next_curriculum_id ?? null,
+          reason: ctx.reason ?? null,
         };
       },
     },
@@ -61,13 +62,20 @@ function buildDailySteps(): StepDescriptor<{ id: number; current_curriculum_vers
       label: 'dispatcher',
       buildBody: (student, ctx) =>
         ctx?.units && ctx.units.length > 0
-          ? { student_id: student.id, units: ctx.units, ...(ctx?.decision_id ? { decision_id: ctx.decision_id } : {}) }
+          ? {
+              student_id: student.id,
+              units: ctx.units,
+              ...(ctx?.decision_id ? { decision_id: ctx.decision_id } : {}),
+              ...(ctx?.next_curriculum_id ? { next_curriculum_id: ctx.next_curriculum_id } : {}),
+              ...(ctx?.reason ? { reason: ctx.reason } : {}),
+            }
           : ctx?.minutes
           ? {
               student_id: student.id,
               minutes: ctx.minutes,
-              ...(ctx.next_lesson_id ? { next_lesson_id: ctx.next_lesson_id } : {}),
+              ...(ctx.next_curriculum_id ? { next_curriculum_id: ctx.next_curriculum_id } : {}),
               ...(ctx?.decision_id ? { decision_id: ctx.decision_id } : {}),
+              ...(ctx?.reason ? { reason: ctx.reason } : {}),
             }
           : undefined
     }
@@ -159,14 +167,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                       sp?.metadata?.policy?.version ??
                       sp?.policy_version ??
                       null;
-                    if (ctx?.next_lesson_id) {
-                      const { data: lessonRow } = await supabase
-                        .from('lessons')
-                        .select('topic')
-                        .eq('id', ctx.next_lesson_id)
-                        .single();
-                      decision_question_type = lessonRow?.topic ?? null;
-                    }
+                  if (ctx?.question_type) {
+                    decision_question_type = ctx.question_type;
+                  } else if (ctx?.next_curriculum_id) {
+                    const { data: catalogRow } = await supabase
+                      .from('curriculum_catalog')
+                      .select('question_types(canonical_path)')
+                      .eq('external_curriculum_id', ctx.next_curriculum_id)
+                      .single();
+                    decision_question_type =
+                      (catalogRow as any)?.question_types?.canonical_path ?? null;
+                  }
                   } catch {
                     /* ignore */
                   }
@@ -182,10 +193,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                       },
                       expected_outcome:
                         decision_type === 'dispatch_minutes'
-                          ? { minutes: ctx.minutes }
+                          ? {
+                              minutes: ctx.minutes,
+                              curriculum_id: ctx.next_curriculum_id ?? undefined,
+                              reason: ctx.reason ?? undefined,
+                            }
                           : decision_type === 'dispatch_units'
-                          ? { units_count: (ctx.units || []).length }
-                          : { action: ctx?.action },
+                          ? {
+                              units_count: (ctx.units || []).length,
+                              curriculum_id: ctx.next_curriculum_id ?? undefined,
+                              reason: ctx.reason ?? undefined,
+                            }
+                          : { action: ctx?.action, reason: ctx.reason ?? undefined },
                       policy_version,
                     })
                     .select('id')

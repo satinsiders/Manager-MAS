@@ -1,7 +1,6 @@
 import { supabase } from '../../packages/shared/supabase';
-import { callWithRetry } from '../../packages/shared/retry';
 import { notify } from '../../packages/shared/notify';
-import { SUPERFASTSAT_API_TOKEN, SUPERFASTSAT_API_URL } from '../../packages/shared/config';
+import { platformCallWithRetry } from '../../packages/shared/platform';
 import type { PlatformDispatch } from './types';
 
 function cleanSegment(s: string): string {
@@ -167,17 +166,7 @@ export async function upsertCatalogFromDispatches(rows: PlatformDispatch[], clie
 }
 
 export async function syncCurriculumCatalogFromApi(client = supabase) {
-  const url = `${SUPERFASTSAT_API_URL.replace(/\/$/, '')}/curriculums`;
-  const resp = await callWithRetry(
-    url,
-    {
-      headers: {
-        Authorization: `Bearer ${SUPERFASTSAT_API_TOKEN}`,
-      },
-    },
-    'platform-sync',
-    'catalog'
-  );
+  const resp = await platformCallWithRetry('/curriculums', {}, 'platform-sync', 'catalog');
   if (!resp) return;
   let list: any[] = [];
   try {

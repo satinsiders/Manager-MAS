@@ -1,22 +1,21 @@
 import { randomUUID } from 'crypto';
 import { supabase } from '../../packages/shared/supabase';
-import { callWithRetry } from '../../packages/shared/retry';
-import { SUPERFASTSAT_API_TOKEN, SUPERFASTSAT_API_URL } from '../../packages/shared/config';
+import type { Response as NodeFetchResponse } from 'node-fetch';
+import { platformCallWithRetry } from '../../packages/shared/platform';
+import { SUPERFASTSAT_API_URL } from '../../packages/shared/config';
 
 const DEFAULT_TIMEZONE = process.env.DEFAULT_STUDENT_TIMEZONE ?? 'UTC';
 
+type PlatformResponse = globalThis.Response | NodeFetchResponse;
+
 export async function syncStudentsRoster(
   client = supabase,
-  callFn: typeof callWithRetry = callWithRetry
+  callFn: (url: string) => Promise<PlatformResponse | null> = (url) =>
+    platformCallWithRetry(url, {}, 'platform-sync', 'students')
 ) {
   const baseUrl = SUPERFASTSAT_API_URL.replace(/\/$/, '');
   const studentsUrl = process.env.PLATFORM_STUDENTS_URL ?? `${baseUrl}/students`;
-  const resp = await callFn(
-    `${studentsUrl}?onlyValid=false`,
-    { headers: { Authorization: `Bearer ${SUPERFASTSAT_API_TOKEN}` } },
-    'platform-sync',
-    'students'
-  );
+  const resp = await callFn(`${studentsUrl}?onlyValid=false`);
   if (!resp) return;
   let list: any[] = [];
   try {

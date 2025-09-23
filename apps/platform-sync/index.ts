@@ -1,9 +1,9 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../../packages/shared/vercel';
 import { supabase } from '../../packages/shared/supabase';
-import { callWithRetry } from '../../packages/shared/retry';
 import { notify } from '../../packages/shared/notify';
-import { SUPERFASTSAT_API_URL, SUPERFASTSAT_API_TOKEN } from '../../packages/shared/config';
-import type { DailyPerformance, PlatformDispatch } from './types';
+import { platformCallWithRetry } from '../../packages/shared/platform';
+import { SUPERFASTSAT_API_URL } from '../../packages/shared/config';
+import type { DailyPerformance, DailyPerformanceUnit, PlatformDispatch } from './types';
 import {
   mapStudentCurriculums,
   parseTitleToTaxonomy,
@@ -12,19 +12,20 @@ import {
 } from './catalog';
 import {
   upsertDailyPerformance as upsertDailyPerformanceImpl,
+  upsertDailyPerformanceUnits as upsertDailyPerformanceUnitsImpl,
   upsertDispatchMirror as upsertDispatchMirrorImpl,
 } from './mirrors';
 import { updateStudyPlanProgress as updateStudyPlanProgressImpl } from './progress';
 import { syncStudentsRoster } from './students';
 
-export type { PlatformDispatch, DailyPerformance } from './types';
+export type { PlatformDispatch, DailyPerformance, DailyPerformanceUnit } from './types';
 export {
   mapStudentCurriculums,
   parseTitleToTaxonomy,
   syncCurriculumCatalogFromApi,
   upsertCatalogFromDispatches,
 } from './catalog';
-export { upsertDailyPerformance, upsertDispatchMirror } from './mirrors';
+export { upsertDailyPerformance, upsertDailyPerformanceUnits, upsertDispatchMirror } from './mirrors';
 export { computeProgressRows, evaluateQuestionTypeProgress, updateStudyPlanProgress } from './progress';
 
 export async function upsertLessonsQuestionTypes(client = supabase) {
@@ -101,8 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // If no explicit body provided, optionally fetch from platform APIs for all active students
     const baseUrl = SUPERFASTSAT_API_URL.replace(/\/$/, '');
     const DISPATCH_URL = process.env.PLATFORM_DISPATCH_LIST_URL ?? `${baseUrl}/student-curriculums`;
-    const DAILY_URL = process.env.PLATFORM_DAILY_PERFORMANCE_URL ?? `${baseUrl}/teacher/study-schedules`;
-    const headers = { Authorization: `Bearer ${SUPERFASTSAT_API_TOKEN}` };
+    const DAILY_URL = process.env.PLATFORM_DAILY_PERFORMANCE_URL ?? `${baseUrl}/study-schedules`;
     if (!dispatches.length && !daily_performance.length && (DISPATCH_URL || DAILY_URL)) {
       try {
         await syncStudentsRoster();
@@ -121,9 +121,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       for (const s of students ?? []) {
         const sid = s.id;
         if (DISPATCH_URL) {
-          const resp = await callWithRetry(
+          const resp = await platformCallWithRetry(
             `${DISPATCH_URL}?studentId=${encodeURIComponent(sid)}&includeStopped=true&includeNoRemainingDuration=true`,
-            { headers },
+            {},
             'platform-sync',
             `api3:${sid}`
           );
@@ -143,9 +143,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         if (DAILY_URL) {
           const scheduledDate = new Date().toISOString().slice(0, 10);
-          const resp = await callWithRetry(
+          const resp = await platformCallWithRetry(
             `${DAILY_URL}?studentId=${encodeURIComponent(sid)}&scheduledDate=${scheduledDate}`,
-            { headers },
+            {},
             'platform-sync',
             `api5:${sid}`
           );
@@ -154,35 +154,73 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               const body: any = await resp.json();
               const summaries: any[] = Array.isArray(body) ? body : body?.items ?? [];
               const rows: DailyPerformance[] = [];
+              const unitDetails: DailyPerformanceUnit[] = [];
               for (const schedule of summaries) {
                 const scheduleInfo = schedule.studySchedule ?? schedule;
                 const date = scheduleInfo?.scheduledDate ?? scheduleInfo?.date ?? scheduledDate;
                 const lessons: any[] = schedule.studyLessons ?? schedule.lessons ?? [];
                 for (const lesson of lessons) {
-                  const lessonIdentifier = lesson.lesson?.id ?? lesson.lessonId ?? lesson.id;
-                  if (lessonIdentifier == null) continue;
+                  const lessonIdentifier = lesson.lesson?.id ?? lesson.lessonId ?? lesson.id ?? null;
+                  const curriculumId = String(
+                    lesson.lesson?.curriculumId ??
+                      scheduleInfo?.curriculumId ??
+                      scheduleInfo?.curriculum?.id ??
+                      lesson.curriculumId ??
+                      lessonIdentifier ?? `${date}:${Math.random().toString(36).slice(2, 8)}`
+                  );
+                  const lessonId = String(lessonIdentifier ?? curriculumId);
                   const units: any[] = lesson.studyUnits ?? lesson.units ?? [];
                   const correctCount = units.filter((u: any) => u.isCorrect === true).length;
-                  const completedUnits = units.filter((u: any) => u.isCompleted).length;
-                  const correctness = units.length ? Math.round((correctCount / units.length) * 100) : null;
                   const confidences = units
                     .map((u: any) => (typeof u.confidence === 'number' ? Number(u.confidence) : null))
                     .filter((v) => v !== null) as number[];
                   const avgConfidence = confidences.length
                     ? confidences.reduce((sum, v) => sum + v, 0) / confidences.length
                     : null;
+                  const avgCorrectness = units.length
+                    ? Math.round((correctCount / units.length) * 100)
+                    : null;
+
                   rows.push({
                     student_id: sid,
                     date,
-                    external_curriculum_id: String(lessonIdentifier),
-                    bundle_ref: String(lesson.id ?? lesson.lessonId ?? `${date}:${Math.random().toString(36).slice(2, 8)}`),
-                    avg_correctness: correctness,
+                    external_curriculum_id: curriculumId,
+                    bundle_ref: String(
+                      lessonId || `${date}:${Math.random().toString(36).slice(2, 8)}`
+                    ),
+                    avg_correctness: avgCorrectness,
                     avg_confidence: avgConfidence,
                     units: units.length || null,
+                  });
+
+                  units.forEach((unit: any, idx: number) => {
+                    const unitId = String(
+                      unit.unit?.id ?? unit.unitId ?? unit.id ?? `${lessonId}:${idx}`
+                    );
+                    unitDetails.push({
+                      student_id: sid,
+                      date,
+                      external_curriculum_id: curriculumId,
+                      lesson_id: lessonId,
+                      unit_id: unitId,
+                      unit_seq: unit.unitSeq ?? unit.unit?.unitSeq ?? idx,
+                      is_completed:
+                        typeof unit.isCompleted === 'boolean' ? unit.isCompleted : null,
+                      is_correct:
+                        typeof unit.isCorrect === 'boolean' ? unit.isCorrect : null,
+                      confidence:
+                        typeof unit.confidence === 'number' ? Number(unit.confidence) : null,
+                      consecutive_correct_count:
+                        typeof lesson.consecutiveCorrectCount === 'number'
+                          ? lesson.consecutiveCorrectCount
+                          : null,
+                      raw: unit,
+                    });
                   });
                 }
               }
               if (rows.length) await upsertDailyPerformanceImpl(rows);
+              if (unitDetails.length) await upsertDailyPerformanceUnitsImpl(unitDetails);
             } catch {
               /* ignore parse errors */
             }

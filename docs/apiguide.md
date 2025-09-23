@@ -10,6 +10,35 @@
 
 ---
 
+## 선생님 로그인 API  (토큰 발급)
+**Endpoint**
+POST https://prod-teacher-api.superfastsat.com/auth/login
+​
+**Headers**
+accept: application/json
+Content-Type: application/json
+​
+**Request Body (JSON)**
+{
+  "email": "user@example.com",
+  "password": "your_password"
+}
+​
+**Response 예시 (201)**
+{
+  "toekn": "eyJhbGciOiJIUzI1NiIsInR5cCI6...",
+}
+​
+**예시 cURL 명령어**
+curl -X 'POST' \
+  'https://prod-teacher-api.superfastsat.com/auth/login' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "email": "user@example.com",
+  "password": "your_password"
+}'
+
 ## 학생 커리큘럼 목록 조회 API
 
 **Endpoint**
@@ -187,7 +216,7 @@ Content-Type: application/json
 
 **Endpoint**
 ```http
-GET https://prod-teacher-api.superfastsat.com/teacher/study-schedules
+GET https://prod-teacher-api.superfastsat.com/study-schedules
 ```
 
 **Headers**
@@ -366,6 +395,7 @@ Authorization: Bearer {access_token}
 | originId | number | 원본 커리큘럼 ID |
 | title | string | 커리큘럼 제목 |
 
+with no query parameters, the API will return the full curriculum list available on the SuperfastSAT platform.
 ---
 
 ## 학생 커리큘럼 수강권 지급 API

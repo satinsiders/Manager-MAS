@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '../../packages/shared/vercel';
 import {
   ORCHESTRATOR_URL,
   ORCHESTRATOR_SECRET,
