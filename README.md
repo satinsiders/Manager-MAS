@@ -6,6 +6,8 @@ SuperfastSAT Multi-Agent System scaffold. This project uses the OpenAI Responses
 
 The system calls the SuperfastSAT teacher APIs directly, browsing curricula, assigning content, and dispatching units measured in expected minutes to complete. After reviewing correctness and confidence ratings returned by the platform, MAS decides whether to continue the current curriculum or assign a new one. When a student demonstrates mastery in a question type—typically through perfect accuracy across sufficient practice—the automation progresses to a different question type.
 
+For the MVP, every instructor interaction happens through the MAS chat console (`apps/chat` + `apps/chat-ui`). The front end streams Responses API tokens in real time while background tools call SuperfastSAT APIs without exposing raw payloads to the user.
+
 To support this workflow, the system stores its own records for:
 
 - The studyplan for each student and its version history.
@@ -21,7 +23,10 @@ To support this workflow, the system stores its own records for:
 
 ## Structure
 
-- `apps/` – Vercel serverless functions for each agent.
+- `apps/chat/` – streaming Responses API orchestrator (primary instructor interface).
+- `apps/chat-ui/` – teacher-facing chat console that renders streaming output and tool progress.
+- `scripts/chat-dev-server.ts` – local runner serving both the chat API and UI together.
+- `apps/` – remaining Vercel serverless functions for background agents.
 - `packages/` – shared libraries.
 - `supabase/` – database migrations for PostgreSQL.
 - `.github/workflows/` – scheduled GitHub Action workflows.
@@ -35,15 +40,25 @@ npm install
 ```
 
 2. Copy `.env.example` to `.env` and fill in credentials for Supabase, OpenAI, Slack, set `STUDYPLAN_EDITOR_URL`, `ORCHESTRATOR_URL`, and configure the platform base URL (`SUPERFASTSAT_API_URL`).
-   - If the platform team provides a long-lived key, set `SUPERFASTSAT_API_TOKEN`.
-   - Otherwise leave the token blank and provide the teacher login via `SUPERFASTSAT_TEACHER_EMAIL` and `SUPERFASTSAT_TEACHER_PASSWORD` to have MAS fetch a fresh key automatically (see `docs/apiguide.md`).
-   - Configure `ASSIGNMENTS_URL` for the supplemental agent, plus secrets `ORCHESTRATOR_SECRET` and `SCHEDULER_SECRET`. Optionally adjust `DRAFT_TTL` (seconds for `draft:*` keys).
+ - If the platform team provides a long-lived key, set `SUPERFASTSAT_API_TOKEN`.
+  - Otherwise leave the token blank and provide the teacher login via `SUPERFASTSAT_TEACHER_EMAIL` and `SUPERFASTSAT_TEACHER_PASSWORD` to have MAS fetch a fresh key automatically (see `docs/apiguide.md`).
+  - Configure `ASSIGNMENTS_URL` for the supplemental agent, plus secrets `ORCHESTRATOR_SECRET` and `SCHEDULER_SECRET`. Optionally adjust `DRAFT_TTL` (seconds for `draft:*` keys).
 
 3. Run type checks:
 
 ```bash
 npm test
 ```
+
+### Chat Console (Local)
+
+Launch the streaming chat experience locally with:
+
+```bash
+npx tsx scripts/chat-dev-server.ts
+```
+
+The server prints both the UI (`/api/chat-ui`) and API (`/api/chat`) URLs.
 
 ## Deployment
 

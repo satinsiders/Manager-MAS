@@ -10,6 +10,7 @@
 
 - Manager MAS (decision engine)
   - Consumes both Platform data and Supabase state to (a) decide what to assign/dispatch next, (b) update the study plan and mastery status, (c) log decisions and outcomes.
+  - Exposed to instructors through the streaming chat console (`apps/chat` + `apps/chat-ui`), which calls platform APIs via the `platform_api_call` tool and keeps raw payloads internal to the model.
 
 
 

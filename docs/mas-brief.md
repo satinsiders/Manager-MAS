@@ -11,6 +11,12 @@ All processes are driven by an LLM-based multi-agent system with observability a
 
 Note on terms: “Curriculum” refers to the platform-owned scaffolding of lessons and units (immutable; dispatched in minute bundles such as “Information and Ideas > Inferences > Guidance”). “Study Plan” refers to the MAS-owned, student-specific strategy that sequences curricula and pacing rules; agents consult the study plan to decide what curriculum minutes to send each day.
 
+## 0.1 Conversational Front End (MVP)
+- `apps/chat` orchestrates GPT-5 via the Responses API and now acts as the primary teacher interface; `apps/chat-ui` renders the streaming chat experience.
+- Platform APIs are accessed exclusively through the `platform_api_call` tool. The UI shows progress and success/failure, while detailed payloads stay inside the model’s working memory.
+- This console becomes the launch point for MAS actions (curriculum lookups, dispatches, plan updates) throughout the MVP.
+- Run `npx tsx scripts/chat-dev-server.ts` to serve both the UI and API locally for QA and demos.
+
 ## 1. Content Hierarchy & Delivery Flow
 
 - All curricula live in the SuperfastSAT CMS, which syncs with the LMS.
@@ -25,6 +31,7 @@ Note on terms: “Curriculum” refers to the platform-owned scaffolding of less
 
 | Agent | Trigger | Responsibility |
 |-------|---------|----------------|
+| Chat Console | Teacher prompt via chat UI | Stream GPT-5 responses, invoke `platform_api_call`, and hand follow-up work to downstream agents when automation is required. |
 | Scheduler | GitHub Actions cron | Call daily and weekly jobs at the exact time. |
 | Orchestrator | All triggers | Pass context to required sub-agents and manage retries and logging. |
 | Dispatcher | Immediately after selection | Send curriculum units and metadata to the SuperfastSAT platform and record in `dispatch_log`. |
