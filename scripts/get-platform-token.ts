@@ -1,4 +1,4 @@
-import { getPlatformAuthToken } from '../packages/shared/platformAuth.ts';
+import { getPlatformAuthToken } from '../packages/shared/platformAuth';
 
 async function main() {
   try {

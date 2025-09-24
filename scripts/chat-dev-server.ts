@@ -31,7 +31,7 @@ function wrapResponse(res: any): VercelResponse {
   return res as VercelResponse;
 }
 
-const PORT = Number(process.env.MAS_CHAT_PORT ?? 4321);
+const PORT = Number(process.env.PORT ?? process.env.MAS_CHAT_PORT ?? 4321);
 
 createServer(async (incoming, outgoing) => {
   const chunks: Buffer[] = [];

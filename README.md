@@ -55,14 +55,18 @@ npm test
 Launch the streaming chat experience locally with:
 
 ```bash
-npx tsx scripts/chat-dev-server.ts
+npm run chat:dev
 ```
+
+This uses `tsx` for live TypeScript execution. For a production-style run, build first (`npm run build`) and then start the compiled server via `npm start`.
 
 The server prints both the UI (`/api/chat-ui`) and API (`/api/chat`) URLs.
 
 ## Deployment
 
-- Vercel deploys the functions under `apps/`.
+- The chat console + API can run anywhere Node 20 is available. Run `npm run build` followed by `npm start` (alias of `npm run chat:serve`) to serve the compiled output.
+- Render blueprint (`render.yaml`) provisions a managed web service; follow `docs/deploy/render.md` for step-by-step deployment.
+- Push the repo to GitHub and enable CI + branch protections using `docs/deploy/github.md`.
 - Supabase migrations should be applied during deployment using the Supabase CLI, e.g. `supabase db push`. The latest migration adds `platform_student_id` to `students` and `student_curriculum_id` to the platform mirrors; populate these before switching traffic to minutes-based dispatching.
 - GitHub Actions workflow `scheduler.yml` triggers the scheduler endpoint at 07:00 daily and 23:00 Friday, which in turn invokes the orchestrator with the appropriate `run_type`.
 

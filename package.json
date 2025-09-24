@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "chat:dev": "tsx scripts/chat-dev-server.ts",
+    "chat:serve": "node dist/scripts/chat-dev-server.js",
+    "start": "npm run chat:serve",
+    "build": "tsc",
     "test": "tsc -p tsconfig.json --noEmit && tsx apps/curriculum-editor/index.test.ts && tsx apps/qa-formatter/index.test.ts && tsx apps/lesson-picker/index.test.ts && tsx apps/dispatcher/index.test.ts && tsx apps/platform-sync/index.test.ts && tsx apps/orchestrator/index.test.ts && tsx apps/performance-recorder/index.test.ts && tsx apps/data-aggregator/index.test.ts && tsx apps/notification-bot/index.test.ts && tsx apps/scheduler/index.test.ts && tsx packages/shared/memory.test.ts"
   },
   "dependencies": {

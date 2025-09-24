@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --include=dev
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPERFASTSAT_API_URL: ${{ secrets.SUPERFASTSAT_API_URL }}
+          SUPERFASTSAT_API_TOKEN: ${{ secrets.SUPERFASTSAT_API_TOKEN }}
+          SUPERFASTSAT_TEACHER_EMAIL: ${{ secrets.SUPERFASTSAT_TEACHER_EMAIL }}
+          SUPERFASTSAT_TEACHER_PASSWORD: ${{ secrets.SUPERFASTSAT_TEACHER_PASSWORD }}
+          ORCHESTRATOR_URL: ${{ secrets.ORCHESTRATOR_URL }}
+          ORCHESTRATOR_SECRET: ${{ secrets.ORCHESTRATOR_SECRET }}
+          SCHEDULER_SECRET: ${{ secrets.SCHEDULER_SECRET }}
+          ASSIGNMENTS_URL: ${{ secrets.ASSIGNMENTS_URL }}
+          DATA_AGGREGATOR_URL: ${{ secrets.DATA_AGGREGATOR_URL }}
+          QA_FORMATTER_URL: ${{ secrets.QA_FORMATTER_URL }}
+          LESSON_PICKER_URL: ${{ secrets.LESSON_PICKER_URL }}
+          DISPATCHER_URL: ${{ secrets.DISPATCHER_URL }}
+          NOTIFICATION_BOT_URL: ${{ secrets.NOTIFICATION_BOT_URL }}
+          DRAFT_TTL: ${{ secrets.DRAFT_TTL }}

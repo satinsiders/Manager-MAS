@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: manager-mas-chat
+    env: node
+    plan: starter
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: '20'
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPERFASTSAT_API_URL
+        sync: false
+      - key: SUPERFASTSAT_API_TOKEN
+        sync: false
+      - key: SUPERFASTSAT_TEACHER_EMAIL
+        sync: false
+      - key: SUPERFASTSAT_TEACHER_PASSWORD
+        sync: false
+      - key: CURRICULUM_EDITOR_URL
+        sync: false
+      - key: ORCHESTRATOR_URL
+        sync: false
+      - key: ORCHESTRATOR_SECRET
+        sync: false
+      - key: SCHEDULER_SECRET
+        sync: false
+      - key: ASSIGNMENTS_URL
+        sync: false
+      - key: DATA_AGGREGATOR_URL
+        sync: false
+      - key: QA_FORMATTER_URL
+        sync: false
+      - key: LESSON_PICKER_URL
+        sync: false
+      - key: DISPATCHER_URL
+        sync: false
+      - key: NOTIFICATION_BOT_URL
+        sync: false
+      - key: DRAFT_TTL
+        value: '3600'
+      - key: NPM_CONFIG_PRODUCTION
+        value: 'false'

@@ -12,6 +12,7 @@
   },
   "include": [
     "apps/**/*.ts",
-    "packages/shared/**/*.ts"
+    "packages/shared/**/*.ts",
+    "scripts/**/*.ts"
   ]
 }

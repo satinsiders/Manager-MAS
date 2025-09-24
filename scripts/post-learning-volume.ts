@@ -1,5 +1,5 @@
-import { getPlatformAuthToken } from '../packages/shared/platformAuth.ts';
-import { SUPERFASTSAT_API_URL } from '../packages/shared/config.ts';
+import { getPlatformAuthToken } from '../packages/shared/platformAuth';
+import { SUPERFASTSAT_API_URL } from '../packages/shared/config';
 
 function parseArgs() {
   const args = process.argv.slice(2);
