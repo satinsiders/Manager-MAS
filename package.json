@@ -2,7 +2,7 @@
   "name": "manager-mas",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "chat:dev": "tsx scripts/chat-dev-server.ts",
     "chat:serve": "node dist/scripts/chat-dev-server.js",
