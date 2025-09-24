@@ -1,8 +1,7 @@
 import 'dotenv/config';
 import { z } from 'zod';
 
-const envSchema = z
-  .object({
+const envSchema = z.object({
     SLACK_WEBHOOK_URL: z.string().url(),
     OPENAI_API_KEY: z.string().min(1),
     SUPABASE_URL: z.string().url(),
@@ -16,25 +15,9 @@ const envSchema = z
     QA_FORMATTER_URL: z.string().url(),
     SUPERFASTSAT_API_URL: z.string().url(),
     SUPERFASTSAT_API_TOKEN: z.string().min(1).optional(),
-    SUPERFASTSAT_TEACHER_EMAIL: z.string().email().optional(),
-    SUPERFASTSAT_TEACHER_PASSWORD: z.string().min(1).optional(),
     ORCHESTRATOR_URL: z.string().url(),
     ORCHESTRATOR_SECRET: z.string().min(1),
     SCHEDULER_SECRET: z.string().min(1),
-  })
-  .superRefine((values, ctx) => {
-    const hasStaticToken = Boolean(values.SUPERFASTSAT_API_TOKEN);
-    const hasCredentials = Boolean(
-      values.SUPERFASTSAT_TEACHER_EMAIL && values.SUPERFASTSAT_TEACHER_PASSWORD,
-    );
-    if (!hasStaticToken && !hasCredentials) {
-      ctx.addIssue({
-        path: ['SUPERFASTSAT_API_TOKEN'],
-        code: z.ZodIssueCode.custom,
-        message:
-          'Provide SUPERFASTSAT_API_TOKEN or SUPERFASTSAT_TEACHER_EMAIL and SUPERFASTSAT_TEACHER_PASSWORD',
-      });
-    }
   });
 
 const env = envSchema.safeParse(process.env);
@@ -44,6 +27,14 @@ if (!env.success) {
 }
 
 const parsedEnv = env.data;
+
+const hasStaticToken = Boolean(parsedEnv.SUPERFASTSAT_API_TOKEN);
+
+if (!hasStaticToken) {
+  console.warn(
+    'SUPERFASTSAT_API_TOKEN is not configured. Interactive chat login will be required at runtime.',
+  );
+}
 
 export const SLACK_WEBHOOK_URL = parsedEnv.SLACK_WEBHOOK_URL;
 export const OPENAI_API_KEY = parsedEnv.OPENAI_API_KEY;
@@ -58,8 +49,6 @@ export const CURRICULUM_EDITOR_URL = parsedEnv.CURRICULUM_EDITOR_URL;
 export const QA_FORMATTER_URL = parsedEnv.QA_FORMATTER_URL;
 export const SUPERFASTSAT_API_URL = parsedEnv.SUPERFASTSAT_API_URL;
 export const SUPERFASTSAT_API_TOKEN = parsedEnv.SUPERFASTSAT_API_TOKEN ?? null;
-export const SUPERFASTSAT_TEACHER_EMAIL = parsedEnv.SUPERFASTSAT_TEACHER_EMAIL ?? null;
-export const SUPERFASTSAT_TEACHER_PASSWORD = parsedEnv.SUPERFASTSAT_TEACHER_PASSWORD ?? null;
 export const ORCHESTRATOR_URL = parsedEnv.ORCHESTRATOR_URL;
 export const ORCHESTRATOR_SECRET = parsedEnv.ORCHESTRATOR_SECRET;
 export const SCHEDULER_SECRET = parsedEnv.SCHEDULER_SECRET;

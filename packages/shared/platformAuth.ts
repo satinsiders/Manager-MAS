@@ -1,12 +1,13 @@
-import {
-  SUPERFASTSAT_API_URL,
-  SUPERFASTSAT_API_TOKEN,
-  SUPERFASTSAT_TEACHER_EMAIL,
-  SUPERFASTSAT_TEACHER_PASSWORD,
-} from './config';
+import { SUPERFASTSAT_API_URL, SUPERFASTSAT_API_TOKEN } from './config';
+
+type TeacherCredentials = {
+  email: string;
+  password: string;
+};
 
 let cachedToken: string | null = null;
 let inflight: Promise<string> | null = null;
+let runtimeTeacherCredentials: TeacherCredentials | null = null;
 
 function baseUrl(): string {
   return SUPERFASTSAT_API_URL.replace(/\/$/, '');
@@ -17,14 +18,32 @@ export function hasStaticPlatformToken(): boolean {
 }
 
 export function isPlatformAuthConfigured(): boolean {
-  return (
-    hasStaticPlatformToken() ||
-    Boolean(SUPERFASTSAT_TEACHER_EMAIL && SUPERFASTSAT_TEACHER_PASSWORD)
-  );
+  return hasStaticPlatformToken() || Boolean(runtimeTeacherCredentials);
+}
+
+export function getRuntimeTeacherCredentials(): TeacherCredentials | null {
+  return runtimeTeacherCredentials ? { ...runtimeTeacherCredentials } : null;
+}
+
+export function setRuntimeTeacherCredentials(credentials: TeacherCredentials | null) {
+  if (credentials) {
+    runtimeTeacherCredentials = {
+      email: credentials.email.trim(),
+      password: credentials.password,
+    };
+  } else {
+    runtimeTeacherCredentials = null;
+  }
+  invalidatePlatformToken(undefined, { force: true });
+}
+
+export function clearRuntimeTeacherCredentials() {
+  setRuntimeTeacherCredentials(null);
 }
 
 async function requestTeacherToken(): Promise<string> {
-  if (!SUPERFASTSAT_TEACHER_EMAIL || !SUPERFASTSAT_TEACHER_PASSWORD) {
+  const credentials = runtimeTeacherCredentials;
+  if (!credentials) {
     throw new Error('Teacher credentials are not configured for platform auth');
   }
   const loginUrl = `${baseUrl()}/auth/login`;
@@ -35,8 +54,8 @@ async function requestTeacherToken(): Promise<string> {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      email: SUPERFASTSAT_TEACHER_EMAIL,
-      password: SUPERFASTSAT_TEACHER_PASSWORD,
+      email: credentials.email,
+      password: credentials.password,
     }),
   });
   if (!resp.ok) {
@@ -68,7 +87,7 @@ export async function getPlatformAuthToken(forceRefresh = false): Promise<string
     throw new Error('Platform API auth is not configured');
   }
   if (forceRefresh) {
-    cachedToken = null;
+    invalidatePlatformToken(undefined, { force: true });
   }
   if (cachedToken) return cachedToken;
   if (!inflight) {
@@ -80,8 +99,12 @@ export async function getPlatformAuthToken(forceRefresh = false): Promise<string
   return cachedToken;
 }
 
-export function invalidatePlatformToken(oldToken?: string) {
-  if (SUPERFASTSAT_API_TOKEN) return; // static tokens do not refresh
-  if (oldToken && cachedToken && oldToken !== cachedToken) return;
+export function invalidatePlatformToken(
+  oldToken?: string,
+  options: { force?: boolean } = {},
+) {
+  if (hasStaticPlatformToken() && !options.force) return; // static tokens do not refresh
+  if (!options.force && oldToken && cachedToken && oldToken !== cachedToken) return;
   cachedToken = null;
+  inflight = null;
 }

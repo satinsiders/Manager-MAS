@@ -19,10 +19,6 @@ services:
         sync: false
       - key: SUPERFASTSAT_API_TOKEN
         sync: false
-      - key: SUPERFASTSAT_TEACHER_EMAIL
-        sync: false
-      - key: SUPERFASTSAT_TEACHER_PASSWORD
-        sync: false
       - key: CURRICULUM_EDITOR_URL
         sync: false
       - key: ORCHESTRATOR_URL

@@ -27,14 +27,12 @@ Visit **Settings > Secrets and variables > Actions** in GitHub and add the secre
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPERFASTSAT_API_URL`
 - `SUPERFASTSAT_API_TOKEN`
-- `SUPERFASTSAT_TEACHER_EMAIL`
-- `SUPERFASTSAT_TEACHER_PASSWORD`
 - `ORCHESTRATOR_URL`
 - `ORCHESTRATOR_SECRET`
 - `SCHEDULER_SECRET`
 - Any additional downstream URLs (`ASSIGNMENTS_URL`, etc.)
 
-These names mirror the environment variables used by the app and Render blueprint.
+These names mirror the environment variables used by the app and Render blueprint. If `SUPERFASTSAT_API_TOKEN` is omitted, instructors authenticate during chat sessions using the `login email@example.com password` command.
 
 ## 3. Continuous Integration (CI)
 This prep adds a workflow at `.github/workflows/ci.yml` that runs on every push and pull request:

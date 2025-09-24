@@ -15,6 +15,14 @@ import type {
   Tool,
 } from 'openai/resources/responses/responses';
 import { platformJson } from '../../packages/shared/platform';
+import {
+  clearRuntimeTeacherCredentials,
+  getPlatformAuthToken,
+  getRuntimeTeacherCredentials,
+  hasStaticPlatformToken,
+  isPlatformAuthConfigured,
+  setRuntimeTeacherCredentials,
+} from '../../packages/shared/platformAuth';
 import { openai } from './lib/openaiClient';
 import { systemPrompt, platformTool, PLATFORM_OPERATIONS, type PlatformOperation, type PlatformToolArgs } from './lib/llm';
 
@@ -48,6 +56,137 @@ import {
 
 import { buildQuery, toNumber, isKnownMutationSuccess } from './lib/utils';
 import operationHandlers, { confirmAssignment, confirmLearningVolume } from './lib/operationHandlers';
+
+type AuthCommand =
+  | { kind: 'login'; email: string; password: string }
+  | { kind: 'logout' }
+  | { kind: 'login-invalid'; reason: string };
+
+function latestUserMessage(messages: Array<{ role: string; content: string }>): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'user' && typeof messages[i]?.content === 'string') {
+      return messages[i].content;
+    }
+  }
+  return null;
+}
+
+function parseAuthCommandFromMessage(message: string): AuthCommand | null {
+  const trimmed = message.trim();
+  if (!trimmed) return null;
+  if (/^log\s*out$/i.test(trimmed) || /^logout$/i.test(trimmed)) {
+    return { kind: 'logout' };
+  }
+  const loginMatch = /^login\s+(\S+)(?:\s+(.+))?$/i.exec(trimmed);
+  if (!loginMatch) return null;
+  const email = loginMatch[1];
+  if (!email.includes('@')) return null;
+  const password = loginMatch[2]?.trim();
+  if (!password) {
+    return {
+      kind: 'login-invalid',
+      reason: 'Include both email and password after `login`, for example: `login teacher@example.com correcthorsebatterystaple`.',
+    };
+  }
+  return { kind: 'login', email, password };
+}
+
+function detectAuthCommand(messages: Array<{ role: string; content: string }>): AuthCommand | null {
+  const latest = latestUserMessage(messages);
+  if (!latest) return null;
+  return parseAuthCommandFromMessage(latest);
+}
+
+async function handleAuthCommand(
+  command: AuthCommand,
+  writer: ReturnType<typeof createNdjsonWriter>,
+): Promise<void> {
+  if (command.kind === 'login-invalid') {
+    writer.write({
+      type: 'assistant_message',
+      content: command.reason,
+      outputIndex: 0,
+    });
+    writer.write({ type: 'done' });
+    writer.close();
+    return;
+  }
+
+  if (command.kind === 'logout') {
+    if (hasStaticPlatformToken()) {
+      writer.write({
+        type: 'assistant_message',
+        content:
+          'A static platform API token is configured for this deployment, so chat-based logout is disabled. Remove the token from the environment to require interactive login.',
+        outputIndex: 0,
+      });
+      writer.write({ type: 'done' });
+      writer.close();
+      return;
+    }
+    if (!getRuntimeTeacherCredentials()) {
+      writer.write({
+        type: 'assistant_message',
+        content: 'No interactive login is active. You can sign in with `login email@example.com password`.',
+        outputIndex: 0,
+      });
+      writer.write({ type: 'done' });
+      writer.close();
+      return;
+    }
+    clearRuntimeTeacherCredentials();
+    writer.write({
+      type: 'assistant_message',
+      content: 'Signed out. The assistant will ask you to log in again before making platform changes.',
+      outputIndex: 0,
+    });
+    writer.write({ type: 'done' });
+    writer.close();
+    return;
+  }
+
+  if (command.kind === 'login') {
+    if (hasStaticPlatformToken()) {
+      writer.write({
+        type: 'assistant_message',
+        content:
+          'This environment already has a static platform token configured, so the interactive `login` command is ignored. Remove the token from Render to enable chat-based login.',
+        outputIndex: 0,
+      });
+      writer.write({ type: 'done' });
+      writer.close();
+      return;
+    }
+
+    const previousRuntime = getRuntimeTeacherCredentials();
+    setRuntimeTeacherCredentials({ email: command.email, password: command.password });
+    try {
+      await getPlatformAuthToken(true);
+      writer.write({
+        type: 'assistant_message',
+        content: `Logged in as ${command.email}. The assistant can now contact the platform APIs.`,
+        outputIndex: 0,
+      });
+      writer.write({ type: 'done' });
+      writer.close();
+    } catch (error: any) {
+      if (previousRuntime) {
+        setRuntimeTeacherCredentials(previousRuntime);
+      } else {
+        clearRuntimeTeacherCredentials();
+      }
+      const message = error?.message ?? 'Login attempt failed.';
+      writer.write({
+        type: 'assistant_message',
+        content: `Login failed: ${String(message)} Check your email and password, then try again.`,
+        outputIndex: 0,
+      });
+      writer.write({ type: 'done' });
+      writer.close();
+    }
+    return;
+  }
+}
 
 
 
@@ -160,10 +299,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    const authCommand = detectAuthCommand(messages);
+    if (authCommand) {
+      await handleAuthCommand(authCommand, writer);
+      return;
+    }
+
     const llmMessages: ResponseInput = [
       { type: 'message', role: 'system', content: systemPrompt },
       ...mapMessagesForLLM(messages),
     ];
+
+    if (!isPlatformAuthConfigured()) {
+      llmMessages.splice(1, 0, {
+        type: 'message',
+        role: 'system',
+        content:
+          'Platform authentication is not yet configured. Ask the user to sign in by sending: `login email@example.com password`. Once logged in, continue with their request.',
+      });
+    }
 
     let previousResponseId: string | undefined;
   let nextInput: ResponseInput | undefined;
