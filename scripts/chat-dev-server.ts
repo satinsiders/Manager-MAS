@@ -34,7 +34,27 @@ function wrapResponse(res: any): VercelResponse {
   return res as VercelResponse;
 }
 
-const PORT = Number(process.env.PORT ?? process.env.MAS_CHAT_PORT ?? 4321);
+function resolvePort() {
+  const sources = [process.env.PORT, process.env.MAS_CHAT_PORT];
+  for (const source of sources) {
+    if (!source) continue;
+    const parsed = Number.parseInt(source, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+    console.warn(`Ignoring invalid port value: ${source}`);
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    const message = 'PORT environment variable is required in production environments.';
+    console.error(message);
+    throw new Error(message);
+  }
+
+  return 4321;
+}
+
+const PORT = resolvePort();
 
 createServer(async (incoming, outgoing) => {
   const chunks: Buffer[] = [];
