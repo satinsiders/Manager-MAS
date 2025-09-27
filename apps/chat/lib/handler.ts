@@ -73,7 +73,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         for await (const event of responseStream) {
           if (event.type === 'response.output_text.delta') {
             const index = event.output_index ?? 0;
-            const latestSnapshot = typeof event.snapshot === 'string' ? event.snapshot : undefined;
+            const snapshotValue = (event as any)?.snapshot;
+            const latestSnapshot = typeof snapshotValue === 'string' ? snapshotValue : undefined;
             let deltaText = '';
             if (typeof latestSnapshot === 'string') {
               const previous = partialSnapshots.get(index) ?? '';
