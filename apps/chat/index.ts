@@ -1,48 +1,4 @@
-// Utility to normalize date to YYYY-MM-DD
 import type { VercelRequest, VercelResponse } from '../../packages/shared/vercel';
-// Agent context for persisting IDs between calls
-type AgentContext = {
-  studentId?: number;
-  curriculumId?: number;
-  studentCurriculumId?: number;
-};
-
-const STATIC_SESSION_KEY = '__static__';
-const agentContexts = new Map<string, AgentContext>();
-
-function sessionKeyForContext(sessionId: string | null): string {
-  return sessionId ?? STATIC_SESSION_KEY;
-}
-
-function getAgentContext(sessionId: string | null): AgentContext {
-  const key = sessionKeyForContext(sessionId);
-  let context = agentContexts.get(key);
-  if (!context) {
-    context = {};
-    agentContexts.set(key, context);
-  }
-  return context;
-}
-
-function getActiveAgentContext(): AgentContext {
-  return getAgentContext(getCurrentSessionId());
-}
-
-onSessionDestroyed((sessionId) => {
-  agentContexts.delete(sessionId);
-});
-
-function getSessionIdFromRequest(req: VercelRequest): string | null {
-  const header = (req.headers['cookie'] as string) ?? '';
-  const cookies = parseCookieHeader(header);
-  const fromHeader = cookies[sessionCookieName];
-  if (fromHeader) return fromHeader;
-  if (req.cookies && typeof req.cookies === 'object') {
-    const direct = (req.cookies as Record<string, string | undefined>)[sessionCookieName];
-    if (direct) return direct;
-  }
-  return null;
-}
 import type {
   Response,
   ResponseFunctionToolCall,
@@ -83,7 +39,6 @@ const tool = platformTool;
 
 import { createNdjsonWriter } from './lib/streaming';
 import { createChunker } from './lib/chunker';
-
 import {
   parseBody,
   mapMessagesForLLM,
@@ -93,9 +48,51 @@ import {
   isPlatformOperation,
 } from './lib/helpers';
 
-
 import { buildQuery, toNumber, isKnownMutationSuccess } from './lib/utils';
 import operationHandlers, { confirmAssignment, confirmLearningVolume } from './lib/operationHandlers';
+
+type AgentContext = {
+  studentId?: number;
+  curriculumId?: number;
+  studentCurriculumId?: number;
+};
+
+const STATIC_SESSION_KEY = '__static__';
+const agentContexts = new Map<string, AgentContext>();
+
+function sessionKeyForContext(sessionId: string | null): string {
+  return sessionId ?? STATIC_SESSION_KEY;
+}
+
+function getAgentContext(sessionId: string | null): AgentContext {
+  const key = sessionKeyForContext(sessionId);
+  let context = agentContexts.get(key);
+  if (!context) {
+    context = {};
+    agentContexts.set(key, context);
+  }
+  return context;
+}
+
+function getActiveAgentContext(): AgentContext {
+  return getAgentContext(getCurrentSessionId());
+}
+
+function getSessionIdFromRequest(req: VercelRequest): string | null {
+  const header = (req.headers['cookie'] as string) ?? '';
+  const cookies = parseCookieHeader(header);
+  const fromHeader = cookies[sessionCookieName];
+  if (fromHeader) return fromHeader;
+  if (req.cookies && typeof req.cookies === 'object') {
+    const direct = (req.cookies as Record<string, string | undefined>)[sessionCookieName];
+    if (direct) return direct;
+  }
+  return null;
+}
+
+onSessionDestroyed((sessionId) => {
+  agentContexts.delete(sessionId);
+});
 
 async function executePlatformOperation(
   operation: PlatformOperation,
