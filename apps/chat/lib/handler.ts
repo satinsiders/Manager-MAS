@@ -2,7 +2,6 @@ import type { VercelRequest, VercelResponse } from '../../../packages/shared/ver
 import { createNdjsonWriter } from './streaming';
 import { openai } from './openaiClient';
 import { systemPrompt, platformTool as tool } from './llm';
-import { createChunker } from './chunker';
 import {
   parseBody,
   mapMessagesForLLM,
@@ -39,20 +38,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const retryCounts = new Map<string, number>();
 
     while (true) {
-      const responseStream = await openai.responses.create(
+      const responseStream = await openai.responses.stream(
         previousResponseId
           ? {
               model: 'gpt-5-mini',
               previous_response_id: previousResponseId,
               input: nextInput ?? [],
               tools: [tool],
-              stream: true,
             }
           : {
               model: 'gpt-5-mini',
               input: llmMessages,
               tools: [tool],
-              stream: true,
             },
       );
 
@@ -60,14 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let aborted = false;
 
       const streamedOutputs = new Map<number, string>();
-      const chunker = createChunker((outputIndex, delta) => {
-        if (delta) {
-          const previous = streamedOutputs.get(outputIndex) ?? '';
-          streamedOutputs.set(outputIndex, previous + delta);
-        }
-        writer.write({ type: 'assistant_delta', delta, outputIndex });
-      });
-      const partialSnapshots = new Map<number, string>();
+      const snapshotOutputs = new Map<number, string>();
 
       try {
         for await (const event of responseStream) {
@@ -75,28 +65,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const index = event.output_index ?? 0;
             const snapshotValue = (event as any)?.snapshot;
             const latestSnapshot = typeof snapshotValue === 'string' ? snapshotValue : undefined;
-            let deltaText = '';
-            if (typeof latestSnapshot === 'string') {
-              const previous = partialSnapshots.get(index) ?? '';
-              deltaText = latestSnapshot.startsWith(previous)
-                ? latestSnapshot.slice(previous.length)
+            const previousSnapshot = latestSnapshot ? snapshotOutputs.get(index) ?? '' : '';
+            let deltaText = typeof event.delta === 'string' ? event.delta : '';
+            if (!deltaText && typeof latestSnapshot === 'string') {
+              deltaText = latestSnapshot.startsWith(previousSnapshot)
+                ? latestSnapshot.slice(previousSnapshot.length)
                 : latestSnapshot;
-              partialSnapshots.set(index, latestSnapshot);
-            } else if (event.delta) {
-              deltaText = event.delta;
+            }
+            if (typeof latestSnapshot === 'string') {
+              snapshotOutputs.set(index, latestSnapshot);
             }
             if (deltaText) {
-              chunker.push(index, deltaText);
+              const previous = streamedOutputs.get(index) ?? previousSnapshot;
+              const updated = previous + deltaText;
+              streamedOutputs.set(index, updated);
+              writer.write({ type: 'assistant_delta', delta: deltaText, outputIndex: index });
+            }
+          } else if (event.type === 'response.output_text.done') {
+            const index = event.output_index ?? 0;
+            const snapshotValue = (event as any)?.snapshot;
+            if (typeof snapshotValue === 'string') {
+              snapshotOutputs.set(index, snapshotValue);
+              streamedOutputs.set(index, snapshotValue);
             }
           } else if (event.type === 'response.completed') {
             completedResponse = event.response;
           } else if (event.type === 'response.failed') {
-            chunker.stopAll();
             writer.write({ type: 'error', error: { message: 'llm_failed', details: event as any } });
             aborted = true;
             break;
           } else if (event.type === 'error') {
-            chunker.stopAll();
             const errorMessage = (event as any)?.message ?? 'llm_error';
             writer.write({ type: 'error', error: { message: String(errorMessage), details: event as any } });
             aborted = true;
@@ -104,37 +102,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
       } catch (err: any) {
-        try {
-          chunker.stopAll();
-        } catch {}
+        responseStream.abort();
         writer.write({ type: 'error', error: { message: 'llm_stream_error', details: { error: String(err) } } });
         writer.close();
         return;
       }
 
-      try {
-        chunker.stopAll();
-      } catch {}
-
       if (aborted) {
+        responseStream.abort();
         writer.close();
         return;
       }
 
-      const finalResponse = completedResponse;
+      let finalResponse = completedResponse;
       if (!finalResponse) {
-        writer.write({ type: 'error', error: { message: 'missing_response' } });
-        writer.close();
-        return;
+        try {
+          finalResponse = await responseStream.finalResponse();
+        } catch (err: any) {
+          const message = err?.message ?? 'missing_response';
+          writer.write({ type: 'error', error: { message } });
+          writer.close();
+          return;
+        }
       }
       previousResponseId = finalResponse.id;
-
-      const snapshotOutputs = new Map<number, string>();
-      partialSnapshots.forEach((value, key) => {
-        if (typeof value === 'string') {
-          snapshotOutputs.set(key, value);
-        }
-      });
 
       const assistantOutputs = extractAssistantOutputs(finalResponse);
       for (const output of assistantOutputs) {

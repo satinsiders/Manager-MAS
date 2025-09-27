@@ -385,26 +385,13 @@ function getToolBubble(callId, operation) {
 }
 
 // For smooth token animation
-const TOKEN_INTERVAL = 10; // ms between tokens
 let currentStreamController = null;
 
 function handleAssistantDelta(event) {
   const stream = getAssistantStream(event.outputIndex);
-  if (event.delta) {
-    stream.text += event.delta;
-    // Split the text into tokens for smooth animation
-    const tokens = event.delta.split(/(\s+)/);
-    let i = 0;
-    const animateTokens = () => {
-      if (!currentStreamController?.active) return;
-      if (i < tokens.length) {
-        stream.body.textContent += tokens[i];
-        i++;
-        setTimeout(animateTokens, TOKEN_INTERVAL);
-      }
-    };
-    animateTokens();
-  }
+  if (!event.delta) return;
+  stream.text += event.delta;
+  stream.body.textContent += event.delta;
 }
 
 function handleAssistantMessage(event) {
