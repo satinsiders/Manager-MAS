@@ -274,7 +274,7 @@ export async function selectNextLesson(
 
   try {
     const gptResponse = await o.responses.create({
-      model: 'gpt-5',
+      model: 'gpt-5-mini',
       input: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: JSON.stringify(decisionInput) },

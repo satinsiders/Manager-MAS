@@ -34,10 +34,14 @@ export async function platformFetch(path: string, init: PlatformFetchOptions = {
 
   let token = await getPlatformAuthToken();
   let response = await execute(token);
-  if (response.status === 401 && !hasStaticPlatformToken()) {
+  if (response.status === 401) {
     invalidatePlatformToken(token);
-    token = await getPlatformAuthToken(true);
-    response = await execute(token);
+    if (hasStaticPlatformToken()) {
+      token = await getPlatformAuthToken(true);
+      response = await execute(token);
+    } else {
+      throw new Error('Platform session expired. Please sign in again.');
+    }
   }
   return response;
 }

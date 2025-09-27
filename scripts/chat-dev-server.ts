@@ -1,13 +1,16 @@
 import { createServer } from 'http';
 import { parse } from 'url';
+import authHandler from '../apps/auth/index';
 import chatHandler from '../apps/chat/index';
 import chatUIHandler from '../apps/chat-ui/index';
 import type { VercelRequest, VercelResponse } from '../packages/shared/vercel';
+import { parseCookieHeader } from '../packages/shared/authSessions';
 
 function decorateRequest(req: any, body: unknown): VercelRequest {
   const url = parse(req.url ?? '/', true);
   req.query = url.query as Record<string, string | string[]>;
   req.body = body;
+  req.cookies = parseCookieHeader(req.headers?.cookie);
   return req as VercelRequest;
 }
 
@@ -55,6 +58,12 @@ createServer(async (incoming, outgoing) => {
     // Handle chat API requests first
     if (req.url?.startsWith('/api/chat')) {
       await chatHandler(req, res);
+      return;
+    }
+
+    if (req.url?.startsWith('/api/auth')) {
+      req.url = req.url.replace('/api/auth', '') || '/';
+      await authHandler(req, res);
       return;
     }
 

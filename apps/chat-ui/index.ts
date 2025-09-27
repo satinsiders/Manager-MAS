@@ -13,13 +13,40 @@ const html = `<!DOCTYPE html>
   <body>
     <div class="shell">
       <header class="masthead">
-  <h1>Manager MAS - Conversational Console</h1>
+        <h1>Manager MAS - Conversational Console</h1>
         <p>
           Talk to the MAS mission assistant. Ask about students, curricula, dispatches, or schedule updates.
           Responses stream live from GPT-5 while platform API work stays behind the scenes.
         </p>
       </header>
-      <section class="chat-panel">
+
+      <section id="auth-panel" class="auth-panel hidden" aria-label="Teacher login">
+        <div class="auth-card">
+          <h2>Teacher Login</h2>
+          <p id="login-message" class="auth-message">
+            Sign in with your SuperfastSAT teacher credentials to unlock the assistant.
+          </p>
+          <form id="login-form" class="auth-form">
+            <label for="login-email">Email</label>
+            <input id="login-email" type="email" autocomplete="username" required />
+            <label for="login-password">Password</label>
+            <input id="login-password" type="password" autocomplete="current-password" required />
+            <button type="submit" id="login-submit">Sign In</button>
+          </form>
+          <p id="login-error" class="auth-error" role="alert"></p>
+        </div>
+      </section>
+
+      <section id="chat-panel" class="chat-panel hidden" aria-label="MAS assistant chat">
+        <div class="session-strip">
+          <div>
+            <span class="session-label">Signed in as</span>
+            <span id="session-email" class="session-email"></span>
+          </div>
+          <div class="session-actions">
+            <button type="button" id="logout">Log Out</button>
+          </div>
+        </div>
         <div class="status-strip">
           <span class="status-dot" id="status-dot"></span>
           <span id="status-text">Ready</span>

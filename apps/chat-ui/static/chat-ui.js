@@ -21,6 +21,22 @@ const sendButton = document.getElementById('send');
 const statusText = document.getElementById('status-text');
 const statusDot = document.getElementById('status-dot');
 const resetButton = document.getElementById('reset-chat');
+const authPanel = document.getElementById('auth-panel');
+const chatPanel = document.getElementById('chat-panel');
+const loginForm = document.getElementById('login-form');
+const loginEmail = document.getElementById('login-email');
+const loginPassword = document.getElementById('login-password');
+const loginSubmit = document.getElementById('login-submit');
+const loginError = document.getElementById('login-error');
+const loginMessage = document.getElementById('login-message');
+const logoutButton = document.getElementById('logout');
+const sessionEmail = document.getElementById('session-email');
+
+const defaultLoginMessage = loginMessage ? loginMessage.textContent : '';
+
+const defaultSessionState = { loggedIn: false, mode: 'interactive', email: null };
+let sessionState = { ...defaultSessionState };
+let previousSessionLoggedIn = false;
 
 function scrollToBottom() {
   transcript.scrollTop = transcript.scrollHeight;
@@ -35,7 +51,195 @@ function setBusy(isBusy) {
 
 function updateSendState() {
   const hasContent = textarea.value.trim().length > 0;
-  sendButton.disabled = busy || !hasContent;
+  sendButton.disabled = busy || !sessionState.loggedIn || !hasContent || textarea.disabled;
+}
+
+function setChatAvailability(enabled) {
+  textarea.disabled = !enabled;
+  if (!enabled) {
+    textarea.value = '';
+  }
+  textarea.placeholder = enabled
+    ? 'Ask about a student, curriculum, or dispatch plan…'
+    : 'Sign in to start chatting with the MAS assistant.';
+  updateSendState();
+}
+
+function clearLoginError() {
+  if (loginError) {
+    loginError.textContent = '';
+  }
+}
+
+function showLoginError(message) {
+  if (loginError) {
+    loginError.textContent = message ?? '';
+  }
+}
+
+function showAuthPanel() {
+  authPanel?.classList.remove('hidden');
+  chatPanel?.classList.add('hidden');
+  setChatAvailability(false);
+  setBusy(false);
+  if (typeof stopButton !== 'undefined' && stopButton) {
+    stopButton.style.display = 'none';
+  }
+  if (loginEmail) {
+    window.requestAnimationFrame(() => loginEmail.focus());
+  }
+}
+
+function showChatPanel() {
+  authPanel?.classList.add('hidden');
+  chatPanel?.classList.remove('hidden');
+  setChatAvailability(true);
+}
+
+function updateSessionUI() {
+  if (sessionState.loggedIn) {
+    sessionEmail.textContent = sessionState.email ?? 'Teacher';
+    showChatPanel();
+    clearLoginError();
+    if (loginPassword) loginPassword.value = '';
+    if (!busy) {
+      statusText.textContent = 'Ready';
+      statusDot.classList.remove('busy');
+    }
+    if (logoutButton) {
+      logoutButton.style.display = sessionState.mode === 'static' ? 'none' : 'inline-flex';
+    }
+  } else {
+    sessionEmail.textContent = '';
+    showAuthPanel();
+    statusText.textContent = 'Sign in required';
+    statusDot.classList.remove('busy');
+    if (logoutButton) {
+      logoutButton.style.display = 'none';
+    }
+  }
+}
+
+function applySessionState(newState, options = {}) {
+  const resolved = { ...defaultSessionState, ...newState };
+  if (resolved.mode === 'static') {
+    resolved.loggedIn = true;
+    if (!resolved.email) {
+      resolved.email = 'Static token';
+    }
+  }
+  if (loginMessage) {
+    loginMessage.textContent =
+      resolved.mode === 'static'
+        ? 'This deployment uses a static platform token. Chat access is always available.'
+        : defaultLoginMessage;
+  }
+
+  const wasLoggedIn = previousSessionLoggedIn;
+  const unchanged =
+    sessionState.loggedIn === resolved.loggedIn &&
+    sessionState.mode === resolved.mode &&
+    sessionState.email === resolved.email;
+
+  sessionState = resolved;
+  updateSessionUI();
+
+  if (!unchanged) {
+    if (sessionState.loggedIn && !wasLoggedIn) {
+      resetConversation();
+    } else if (!sessionState.loggedIn && wasLoggedIn) {
+      resetConversation();
+      if (!options.silent) {
+        showLoginError(options.message || 'Session ended. Please sign in again.');
+      }
+    }
+  }
+
+  if (!sessionState.loggedIn && options.message && !options.silent) {
+    showLoginError(options.message);
+  }
+
+  previousSessionLoggedIn = sessionState.loggedIn;
+}
+
+async function refreshSession(options = {}) {
+  try {
+    const response = await fetch('/api/auth/session');
+    if (!response.ok) {
+      throw new Error('Session check failed');
+    }
+    const data = await response.json();
+    applySessionState(
+      {
+        loggedIn: Boolean(data.loggedIn),
+        email: data.email ?? null,
+        mode: data.mode ?? 'interactive',
+      },
+      { silent: options.silent },
+    );
+  } catch (err) {
+    console.error('Failed to refresh session', err);
+    applySessionState({ loggedIn: false, email: null, mode: 'interactive' }, { silent: true });
+  }
+}
+
+function handleUnauthenticated(message) {
+  applySessionState({ loggedIn: false, email: null, mode: 'interactive' }, { message, silent: false });
+  refreshSession({ silent: true });
+}
+
+const loginSubmitDefaultText = loginSubmit ? loginSubmit.textContent : 'Sign In';
+
+async function handleLogin(event) {
+  event.preventDefault();
+  if (!loginEmail || !loginPassword) return;
+  const email = loginEmail.value.trim();
+  const password = loginPassword.value;
+  if (!email || !password) {
+    showLoginError('Enter both email and password.');
+    return;
+  }
+
+  clearLoginError();
+  if (loginSubmit) {
+    loginSubmit.disabled = true;
+    loginSubmit.textContent = 'Signing In…';
+  }
+
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      const message = data?.message || 'Login failed. Check your credentials and try again.';
+      showLoginError(message);
+      return;
+    }
+    await refreshSession({ silent: true });
+  } catch (err) {
+    console.error('Login request failed', err);
+    showLoginError('Login failed. Please try again.');
+  } finally {
+    if (loginSubmit) {
+      loginSubmit.disabled = false;
+      loginSubmit.textContent = loginSubmitDefaultText;
+    }
+  }
+}
+
+async function handleLogout(event) {
+  event.preventDefault();
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' });
+  } catch (err) {
+    console.error('Logout request failed', err);
+  } finally {
+    applySessionState({ loggedIn: false, email: null, mode: 'interactive' }, { message: 'You have signed out.', silent: false });
+    await refreshSession({ silent: true });
+  }
 }
 
 function createChatBubble(role, options) {
@@ -411,6 +615,10 @@ class StreamController {
 async function sendMessage(raw) {
   const text = raw.trim();
   if (!text || busy) return;
+  if (!sessionState.loggedIn) {
+    showLoginError('Sign in to send messages.');
+    return;
+  }
 
   const userMessage = { role: 'user', content: text };
   dialogue.push(userMessage);
@@ -432,6 +640,11 @@ async function sendMessage(raw) {
       body: JSON.stringify({ messages: dialogue }),
       signal: currentStreamController.abortController.signal,
     });
+
+    if (response.status === 401) {
+      handleUnauthenticated('Session expired. Please sign in again.');
+      return;
+    }
 
     if (!response.ok) {
       // Try to read response body for richer debugging info
@@ -472,6 +685,10 @@ async function sendMessage(raw) {
     console.error('sendMessage error', err);
     // If it's an HTTP error with response body, log that too
     if (err && err.response) {
+      if (err.response.status === 401) {
+        handleUnauthenticated('Session expired. Please sign in again.');
+        return;
+      }
       console.error('HTTP response details:', err.response);
     }
     // Only report failure to UI if not manually stopped
@@ -498,6 +715,14 @@ textarea.addEventListener('keydown', (event) => {
   }
 });
 
+if (loginForm) {
+  loginForm.addEventListener('submit', handleLogin);
+}
+
+if (logoutButton) {
+  logoutButton.addEventListener('click', handleLogout);
+}
+
 textarea.addEventListener('input', updateSendState);
 
 resetButton.addEventListener('click', (event) => {
@@ -518,13 +743,21 @@ function resetConversation() {
   toolBubbles.clear();
   clearAssistantPlaceholder();
   transcript.innerHTML = '';
-  createChatBubble('assistant', {
-    initialText:
-      "Hi, I'm the MAS operations assistant. Ask about students, curricula, or dispatch decisions and I'll pull the latest data for you.",
-  });
+  const initialText = sessionState.loggedIn
+    ? "Hi, I'm the MAS operations assistant. Ask about students, curricula, or dispatch decisions and I'll pull the latest data for you."
+    : 'Sign in to start chatting with the MAS assistant.';
+  createChatBubble('assistant', { initialText });
   textarea.value = '';
   setBusy(false);
-  textarea.focus();
+  setChatAvailability(sessionState.loggedIn);
+  if (sessionState.loggedIn) {
+    textarea.focus();
+  } else {
+    statusText.textContent = 'Sign in required';
+    statusDot.classList.remove('busy');
+  }
 }
 
+showAuthPanel();
 resetConversation();
+refreshSession({ silent: true });

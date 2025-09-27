@@ -85,7 +85,7 @@ Candidate Curricula:
 ${lessonsText}`;
 
       const completion = await openai.responses.create({
-        model: 'gpt-5',
+        model: 'gpt-5-mini',
         input: prompt,
         temperature: 0.2,
       });
