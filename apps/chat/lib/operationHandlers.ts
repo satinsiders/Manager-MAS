@@ -60,9 +60,13 @@ export const operationHandlers: Record<string, (args: Record<string, unknown>, s
     return platformJson(`/students${query}`, { signal });
   },
   async list_student_curriculums(args, signal) {
-    const studentId = args.studentId ?? args.student_id;
-    if (studentId === undefined || studentId === null || studentId === '') {
-      throw new Error('studentId is required');
+    const studentIdRaw = args.studentId ?? args.student_id;
+    const studentId = toNumber(studentIdRaw);
+    if (studentId === null) {
+      if (studentIdRaw === undefined || studentIdRaw === null || studentIdRaw === '') {
+        throw new Error('studentId is required');
+      }
+      throw new Error('studentId must be a number.');
     }
     const query = buildQuery({
       studentId,
@@ -83,9 +87,13 @@ export const operationHandlers: Record<string, (args: Record<string, unknown>, s
     return platformJson(`/student-curriculums${query}`, { signal });
   },
   async list_study_schedules(args, signal) {
-    const studentId = args.studentId ?? args.student_id;
-    if (studentId === undefined || studentId === null || studentId === '') {
-      throw new Error('studentId is required');
+    const studentIdRaw = args.studentId ?? args.student_id;
+    const studentId = toNumber(studentIdRaw);
+    if (studentId === null) {
+      if (studentIdRaw === undefined || studentIdRaw === null || studentIdRaw === '') {
+        throw new Error('studentId is required');
+      }
+      throw new Error('studentId must be a number.');
     }
     const scheduledDate = args.scheduledDate ?? args.scheduled_date;
     if (!scheduledDate) {
@@ -125,21 +133,29 @@ export const operationHandlers: Record<string, (args: Record<string, unknown>, s
   },
   async set_learning_volume(args, signal) {
     const studentCurriculumIdRaw = args.studentCurriculumId ?? args.student_curriculum_id;
-    if (studentCurriculumIdRaw === undefined || studentCurriculumIdRaw === null || studentCurriculumIdRaw === '') {
-      throw new Error('studentCurriculumId is required');
+    const studentCurriculumId = toNumber(studentCurriculumIdRaw);
+    if (studentCurriculumId === null) {
+      if (studentCurriculumIdRaw === undefined || studentCurriculumIdRaw === null || studentCurriculumIdRaw === '') {
+        throw new Error('studentCurriculumId is required');
+      }
+      throw new Error('studentCurriculumId must be a number.');
     }
     const scheduledDate = args.scheduledDate ?? args.scheduled_date;
     if (!scheduledDate) {
       throw new Error('scheduledDate is required');
     }
     const durationRaw = args.duration;
-    if (durationRaw === undefined || durationRaw === null || durationRaw === '') {
-      throw new Error('duration is required');
+    const duration = toNumber(durationRaw);
+    if (duration === null) {
+      if (durationRaw === undefined || durationRaw === null || durationRaw === '') {
+        throw new Error('duration is required');
+      }
+      throw new Error('duration must be a number.');
     }
     const payload = {
-      studentCurriculumId: Number(studentCurriculumIdRaw),
+      studentCurriculumId,
       scheduledDate: String(scheduledDate),
-      duration: Number(durationRaw),
+      duration,
     };
     const studentId = toNumber(args.studentId ?? args.student_id);
     try {
@@ -194,16 +210,24 @@ export const operationHandlers: Record<string, (args: Record<string, unknown>, s
   },
   async grant_student_course(args, signal) {
     const curriculumIdRaw = args.curriculumId ?? args.curriculum_id;
-    if (curriculumIdRaw === undefined || curriculumIdRaw === null || curriculumIdRaw === '') {
-      throw new Error('curriculumId is required');
+    const curriculumId = toNumber(curriculumIdRaw);
+    if (curriculumId === null) {
+      if (curriculumIdRaw === undefined || curriculumIdRaw === null || curriculumIdRaw === '') {
+        throw new Error('curriculumId is required');
+      }
+      throw new Error('curriculumId must be a number.');
     }
     const studentIdRaw = args.studentId ?? args.student_id;
-    if (studentIdRaw === undefined || studentIdRaw === null || studentIdRaw === '') {
-      throw new Error('studentId is required');
+    const studentId = toNumber(studentIdRaw);
+    if (studentId === null) {
+      if (studentIdRaw === undefined || studentIdRaw === null || studentIdRaw === '') {
+        throw new Error('studentId is required');
+      }
+      throw new Error('studentId must be a number.');
     }
     const payload = {
-      curriculumId: Number(curriculumIdRaw),
-      studentId: Number(studentIdRaw),
+      curriculumId,
+      studentId,
     };
     try {
       const responseBody = await platformJson('/api/courses', {

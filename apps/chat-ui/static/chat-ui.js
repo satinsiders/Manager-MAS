@@ -1,6 +1,12 @@
-// Helper for text decoding in streaming responses
+import { initThemeControls, storeLoginAlert } from './theme.js';
+
+initThemeControls();
+
 const supportsTextDecoder = typeof TextDecoder !== 'undefined';
 const decoder = supportsTextDecoder ? new TextDecoder() : null;
+
+const LOGIN_REDIRECT_MESSAGE = 'Session ended. Please sign in again.';
+const HIDDEN_CLASS = 'hidden';
 
 /** @type {{ role: 'user' | 'assistant'; content: string; }[]} */
 let dialogue = [];
@@ -13,238 +19,116 @@ let assistantPlaceholder = null;
 /** @type {Map<string, { bubble: HTMLElement; body: HTMLElement; operation: string; }>} */
 const toolBubbles = new Map();
 
-// DOM elements
 const transcript = document.getElementById('transcript');
 const form = document.getElementById('composer');
 const textarea = document.getElementById('input');
 const sendButton = document.getElementById('send');
+const stopButton = document.getElementById('stop');
 const statusText = document.getElementById('status-text');
 const statusDot = document.getElementById('status-dot');
 const resetButton = document.getElementById('reset-chat');
-const authPanel = document.getElementById('auth-panel');
-const chatPanel = document.getElementById('chat-panel');
-const loginForm = document.getElementById('login-form');
-const loginEmail = document.getElementById('login-email');
-const loginPassword = document.getElementById('login-password');
-const loginSubmit = document.getElementById('login-submit');
-const loginError = document.getElementById('login-error');
-const loginMessage = document.getElementById('login-message');
 const logoutButton = document.getElementById('logout');
 const sessionEmail = document.getElementById('session-email');
+const pageShell = document.body;
 
-const defaultLoginMessage = loginMessage ? loginMessage.textContent : '';
+const sendDefaultText = sendButton ? sendButton.textContent || 'Send' : 'Send';
 
 const defaultSessionState = { loggedIn: false, mode: 'interactive', email: null };
 let sessionState = { ...defaultSessionState };
 let previousSessionLoggedIn = false;
 
-function scrollToBottom() {
-  transcript.scrollTop = transcript.scrollHeight;
+if (!transcript || !form || !textarea || !sendButton || !stopButton || !statusText || !statusDot || !resetButton) {
+  throw new Error('Chat UI failed to initialise: missing required elements.');
 }
 
-function setBusy(isBusy) {
-  busy = isBusy;
-  statusText.textContent = isBusy ? 'Consulting GPT-5 and live APIs...' : 'Ready';
-  statusDot.classList.toggle('busy', isBusy);
-  updateSendState();
+function autoSizeTextarea() {
+  textarea.style.height = 'auto';
+  const maxHeight = 240;
+  const minHeight = 64;
+  const next = Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight));
+  textarea.style.height = next + 'px';
+}
+
+function scrollToBottom() {
+  window.requestAnimationFrame(() => {
+    transcript.scrollTop = transcript.scrollHeight;
+  });
+}
+
+function refreshStatusLabel() {
+  if (busy) {
+    statusText.textContent = 'Synthesizing insight...';
+  } else {
+    statusText.textContent = sessionState.loggedIn ? 'Ready for your next prompt' : 'Reconnecting...';
+  }
 }
 
 function updateSendState() {
   const hasContent = textarea.value.trim().length > 0;
   sendButton.disabled = busy || !sessionState.loggedIn || !hasContent || textarea.disabled;
+  if (pageShell) {
+    pageShell.classList.toggle('composer-has-text', hasContent);
+  }
+}
+
+function setBusy(isBusy) {
+  busy = isBusy;
+  if (pageShell) {
+    pageShell.classList.toggle('is-busy', isBusy);
+  }
+  if (statusDot) {
+    statusDot.classList.toggle('busy', isBusy);
+  }
+  sendButton.textContent = isBusy ? 'Sending...' : sendDefaultText;
+  refreshStatusLabel();
+  updateSendState();
 }
 
 function setChatAvailability(enabled) {
   textarea.disabled = !enabled;
   if (!enabled) {
     textarea.value = '';
+    if (pageShell) {
+      pageShell.classList.remove('composer-has-text');
+    }
   }
   textarea.placeholder = enabled
-    ? 'Ask about a student, curriculum, or dispatch plan…'
-    : 'Sign in to start chatting with the MAS assistant.';
+    ? "Plan tomorrow's lesson, request resources, or prep a student briefing..."
+    : 'Reconnecting to MAS...';
+  autoSizeTextarea();
+  refreshStatusLabel();
   updateSendState();
 }
 
-function clearLoginError() {
-  if (loginError) {
-    loginError.textContent = '';
+function clearLoginRedirect(message) {
+  storeLoginAlert(message || LOGIN_REDIRECT_MESSAGE);
+  window.location.replace('/');
+}
+
+function clearAssistantPlaceholder() {
+  if (assistantPlaceholder) {
+    assistantPlaceholder.bubble.remove();
+    assistantPlaceholder = null;
   }
 }
 
-function showLoginError(message) {
-  if (loginError) {
-    loginError.textContent = message ?? '';
-  }
+function formatOperationName(operation) {
+  return operation
+    .split('_')
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
 }
 
-function showAuthPanel() {
-  authPanel?.classList.remove('hidden');
-  chatPanel?.classList.add('hidden');
-  setChatAvailability(false);
-  setBusy(false);
-  if (typeof stopButton !== 'undefined' && stopButton) {
-    stopButton.style.display = 'none';
-  }
-  if (loginEmail) {
-    window.requestAnimationFrame(() => loginEmail.focus());
-  }
-}
-
-function showChatPanel() {
-  authPanel?.classList.add('hidden');
-  chatPanel?.classList.remove('hidden');
-  setChatAvailability(true);
-}
-
-function updateSessionUI() {
-  if (sessionState.loggedIn) {
-    sessionEmail.textContent = sessionState.email ?? 'Teacher';
-    showChatPanel();
-    clearLoginError();
-    if (loginPassword) loginPassword.value = '';
-    if (!busy) {
-      statusText.textContent = 'Ready';
-      statusDot.classList.remove('busy');
-    }
-    if (logoutButton) {
-      logoutButton.style.display = sessionState.mode === 'static' ? 'none' : 'inline-flex';
-    }
-  } else {
-    sessionEmail.textContent = '';
-    showAuthPanel();
-    statusText.textContent = 'Sign in required';
-    statusDot.classList.remove('busy');
-    if (logoutButton) {
-      logoutButton.style.display = 'none';
-    }
-  }
-}
-
-function applySessionState(newState, options = {}) {
-  const resolved = { ...defaultSessionState, ...newState };
-  if (resolved.mode === 'static') {
-    resolved.loggedIn = true;
-    if (!resolved.email) {
-      resolved.email = 'Static token';
-    }
-  }
-  if (loginMessage) {
-    loginMessage.textContent =
-      resolved.mode === 'static'
-        ? 'This deployment uses a static platform token. Chat access is always available.'
-        : defaultLoginMessage;
-  }
-
-  const wasLoggedIn = previousSessionLoggedIn;
-  const unchanged =
-    sessionState.loggedIn === resolved.loggedIn &&
-    sessionState.mode === resolved.mode &&
-    sessionState.email === resolved.email;
-
-  sessionState = resolved;
-  updateSessionUI();
-
-  if (!unchanged) {
-    if (sessionState.loggedIn && !wasLoggedIn) {
-      resetConversation();
-    } else if (!sessionState.loggedIn && wasLoggedIn) {
-      resetConversation();
-      if (!options.silent) {
-        showLoginError(options.message || 'Session ended. Please sign in again.');
-      }
-    }
-  }
-
-  if (!sessionState.loggedIn && options.message && !options.silent) {
-    showLoginError(options.message);
-  }
-
-  previousSessionLoggedIn = sessionState.loggedIn;
-}
-
-async function refreshSession(options = {}) {
-  try {
-    const response = await fetch('/api/auth/session');
-    if (!response.ok) {
-      throw new Error('Session check failed');
-    }
-    const data = await response.json();
-    applySessionState(
-      {
-        loggedIn: Boolean(data.loggedIn),
-        email: data.email ?? null,
-        mode: data.mode ?? 'interactive',
-      },
-      { silent: options.silent },
-    );
-  } catch (err) {
-    console.error('Failed to refresh session', err);
-    applySessionState({ loggedIn: false, email: null, mode: 'interactive' }, { silent: true });
-  }
-}
-
-function handleUnauthenticated(message) {
-  applySessionState({ loggedIn: false, email: null, mode: 'interactive' }, { message, silent: false });
-  refreshSession({ silent: true });
-}
-
-const loginSubmitDefaultText = loginSubmit ? loginSubmit.textContent : 'Sign In';
-
-async function handleLogin(event) {
-  event.preventDefault();
-  if (!loginEmail || !loginPassword) return;
-  const email = loginEmail.value.trim();
-  const password = loginPassword.value;
-  if (!email || !password) {
-    showLoginError('Enter both email and password.');
-    return;
-  }
-
-  clearLoginError();
-  if (loginSubmit) {
-    loginSubmit.disabled = true;
-    loginSubmit.textContent = 'Signing In…';
-  }
-
-  try {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      const message = data?.message || 'Login failed. Check your credentials and try again.';
-      showLoginError(message);
-      return;
-    }
-    await refreshSession({ silent: true });
-  } catch (err) {
-    console.error('Login request failed', err);
-    showLoginError('Login failed. Please try again.');
-  } finally {
-    if (loginSubmit) {
-      loginSubmit.disabled = false;
-      loginSubmit.textContent = loginSubmitDefaultText;
-    }
-  }
-}
-
-async function handleLogout(event) {
-  event.preventDefault();
-  try {
-    await fetch('/api/auth/logout', { method: 'POST' });
-  } catch (err) {
-    console.error('Logout request failed', err);
-  } finally {
-    applySessionState({ loggedIn: false, email: null, mode: 'interactive' }, { message: 'You have signed out.', silent: false });
-    await refreshSession({ silent: true });
-  }
+function formatDuration(ms) {
+  if (typeof ms !== 'number' || !Number.isFinite(ms)) return '';
+  if (ms < 1000) return ms + 'ms';
+  return (ms / 1000).toFixed(1).replace(/\.0$/, '') + 's';
 }
 
 function createChatBubble(role, options) {
   const bubble = document.createElement('article');
   bubble.className = 'bubble bubble-' + role;
+  bubble.dataset.role = role;
   if (role === 'tool') {
     bubble.classList.add('bubble-tool');
   }
@@ -263,11 +147,7 @@ function createChatBubble(role, options) {
     header.textContent = options.label;
   } else {
     header.textContent =
-      role === 'user'
-        ? 'You'
-        : role === 'assistant'
-        ? 'MAS Assistant'
-        : 'Tool Progress';
+      role === 'user' ? 'You' : role === 'assistant' ? 'MAS Assistant' : 'Automation';
   }
   bubble.appendChild(header);
 
@@ -276,22 +156,23 @@ function createChatBubble(role, options) {
   body.textContent = options?.initialText ?? '';
   bubble.appendChild(body);
 
+  if (role === 'tool') {
+    const statusLine = document.createElement('div');
+    statusLine.className = 'status-line';
+    bubble.appendChild(statusLine);
+  }
+
   transcript.appendChild(bubble);
+  bubble.classList.add('bubble-enter');
+  window.requestAnimationFrame(() => {
+    bubble.classList.add('bubble-enter-active');
+    bubble.classList.remove('bubble-enter');
+  });
+  if (pageShell && (role !== 'assistant' || dialogue.length > 0)) {
+    pageShell.classList.add('has-history');
+  }
   scrollToBottom();
   return { bubble, body };
-}
-
-function formatOperationName(operation) {
-  return operation
-    .split('_')
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(' ');
-}
-
-function formatDuration(ms) {
-  if (typeof ms !== 'number' || !Number.isFinite(ms)) return '';
-  if (ms < 1000) return ms + 'ms';
-  return (ms / 1000).toFixed(1).replace(/\.0$/, '') + 's';
 }
 
 function createAssistantStream(initialText, pending) {
@@ -323,55 +204,10 @@ function getAssistantStream(outputIndex) {
   return stream;
 }
 
-function clearAssistantPlaceholder() {
-  if (assistantPlaceholder) {
-    assistantPlaceholder.bubble.remove();
-    assistantPlaceholder = null;
-  }
-}
-
-function updateToolStatus(bubble, body, status, details = '') {
-  const statusLine = bubble.querySelector('.status-line') || document.createElement('div');
-  statusLine.className = 'status-line';
-  
-  let statusText = '';
-  switch (status) {
-    case 'initializing':
-      statusText = 'Initializing API connection...';
-      break;
-    case 'connecting':
-      statusText = 'Connecting to service...';
-      break;
-    case 'fetching':
-      statusText = 'Fetching data...';
-      break;
-    case 'processing':
-      statusText = 'Processing response...';
-      break;
-    case 'success':
-      statusText = 'Operation complete';
-      break;
-    case 'error':
-      statusText = 'Operation failed';
-      break;
-    default:
-      statusText = status;
-  }
-
-  if (details) {
-    statusText += ` • ${details}`;
-  }
-  statusLine.textContent = statusText;
-
-  if (!bubble.querySelector('.status-line')) {
-    bubble.appendChild(statusLine);
-  }
-}
-
 function getToolBubble(callId, operation) {
   let entry = toolBubbles.get(callId);
   if (entry) return entry;
-  const label = 'Tool • ' + formatOperationName(operation);
+  const label = 'Tool - ' + formatOperationName(operation);
   const { bubble, body } = createChatBubble('tool', {
     label,
     initialText: formatOperationName(operation),
@@ -384,8 +220,43 @@ function getToolBubble(callId, operation) {
   return entry;
 }
 
-// For smooth token animation
-let currentStreamController = null;
+function updateToolStatus(bubble, body, status, details = '') {
+  const statusLine = bubble.querySelector('.status-line');
+  if (!statusLine) return;
+
+  let statusTextValue = '';
+  switch (status) {
+    case 'initializing':
+      statusTextValue = 'Preparing secure tunnel...';
+      break;
+    case 'connecting':
+      statusTextValue = 'Linking data streams...';
+      break;
+    case 'fetching':
+      statusTextValue = 'Retrieving live records...';
+      break;
+    case 'processing':
+      statusTextValue = 'Shaping the response...';
+      break;
+    case 'success':
+      statusTextValue = 'Automation complete';
+      break;
+    case 'error':
+      statusTextValue = 'Automation failed';
+      break;
+    default:
+      statusTextValue = status;
+  }
+
+  if (details) {
+    statusTextValue += ` - ${details}`;
+  }
+
+  statusLine.textContent = statusTextValue;
+  if (body && details && status === 'success') {
+    body.dataset.duration = details;
+  }
+}
 
 function handleAssistantDelta(event) {
   const stream = getAssistantStream(event.outputIndex);
@@ -408,16 +279,14 @@ function handleAssistantMessage(event) {
 
 function handleToolStatus(event) {
   const entry = getToolBubble(event.callId, event.operation);
-  const { bubble, body, operation } = entry;
-  
+  const { bubble, body } = entry;
+
   bubble.classList.remove('bubble-tool-pending', 'bubble-tool-success', 'bubble-tool-error');
-  
+
   switch (event.status) {
     case 'started':
       bubble.classList.add('bubble-tool-pending');
       updateToolStatus(bubble, body, 'connecting');
-      
-      // Simulate the tool execution stages
       setTimeout(() => {
         if (bubble.classList.contains('bubble-tool-pending')) {
           updateToolStatus(bubble, body, 'fetching');
@@ -429,98 +298,54 @@ function handleToolStatus(event) {
         }
       }, 600);
       break;
-      
+
     case 'succeeded':
       bubble.classList.add('bubble-tool-success');
       const duration = formatDuration(event.durationMs);
-      
-      // For operations that fetch data
-      if (event.message?.toLowerCase().includes('fetch') || 
-          event.message?.toLowerCase().includes('search') ||
-          event.message?.toLowerCase().includes('read')) {
-        body.textContent = event.message;
-        updateToolStatus(bubble, body, 'success', duration);
-      } 
-      // For operations that process data
-      else if (event.message?.toLowerCase().includes('process') || 
-               event.message?.toLowerCase().includes('analyze')) {
-        body.textContent = event.message;
-        updateToolStatus(bubble, body, 'success', duration);
-      }
-      // For quick operations
-      else {
-        body.textContent = event.message || 'Operation completed';
-        updateToolStatus(bubble, body, 'success', duration);
-      }
+      body.textContent = event.message || formatOperationName(entry.operation);
+      updateToolStatus(bubble, body, 'success', duration);
       break;
-      
+
     case 'failed':
       bubble.classList.add('bubble-tool-error');
-      // Log full failed event for debugging
       console.error('Tool failed', event);
       body.textContent = event.message || 'Operation failed';
       updateToolStatus(bubble, body, 'error');
       break;
   }
-  
+
   scrollToBottom();
 }
 
 function handleStreamError(messageOrEvent) {
-  // Accept either a string or a structured event: { error: { message, stack, details } } or { message }
-  let text = 'Something went wrong. Please try again.';
+  let text = 'We hit turbulence. Try again in a moment.';
   try {
     if (!messageOrEvent) {
-      text = 'Something went wrong. Please try again.';
+      text = 'We hit turbulence. Try again in a moment.';
     } else if (typeof messageOrEvent === 'string') {
       text = messageOrEvent;
     } else if (typeof messageOrEvent === 'object') {
-      // Log full payload for inspection
-      console.error('Stream error payload', messageOrEvent);
-      // Prefer structured error payload
-      const errObj = messageOrEvent.error ?? messageOrEvent;
-      if (typeof errObj === 'string') {
-        text = errObj;
-      } else if (errObj && typeof errObj === 'object') {
-        text = errObj.message || errObj.error?.message || JSON.stringify(errObj.details ?? errObj).slice(0, 500);
-        // Append stack or details summary when available (shortened)
-        if (errObj.stack) {
-          text += '\n' + String(errObj.stack).split('\n')[0];
-        }
+      if (messageOrEvent.error && typeof messageOrEvent.error === 'object') {
+        text = messageOrEvent.error.message || text;
+      } else if (messageOrEvent.message) {
+        text = messageOrEvent.message;
       }
     }
-  } catch (e) {
-    console.error('Error while formatting stream error', e, messageOrEvent);
-    text = 'Something went wrong. (error formatting failed)';
+  } catch (err) {
+    console.error('Failed to parse stream error', err);
   }
-  if (assistantStreams.size === 0 && assistantPlaceholder) {
-    assistantPlaceholder.body.textContent = text;
-    assistantPlaceholder.bubble.classList.remove('bubble-pending');
-    assistantPlaceholder.bubble.classList.add('bubble-error');
-    assistantPlaceholder = null;
-  } else if (assistantStreams.size > 0) {
-    assistantStreams.forEach((stream) => {
-      stream.body.textContent = text;
-      stream.bubble.classList.remove('bubble-pending');
-      stream.bubble.classList.add('bubble-error');
-    });
-    assistantStreams.clear();
-  } else {
-    const { bubble, body } = createChatBubble('assistant', { initialText: text });
-    bubble.classList.add('bubble-error');
-    body.textContent = text;
-  }
-  // Final error: no longer busy and hide stop control
-  setBusy(false);
-  stopButton.style.display = 'none';
+
+  const stream = createAssistantStream(text, false);
+  stream.bubble.classList.add('bubble-error');
+  stream.body.textContent = text;
+  scrollToBottom();
 }
 
 function handleDone() {
   assistantStreams.clear();
   clearAssistantPlaceholder();
-  // Stream finished successfully
   setBusy(false);
-  stopButton.style.display = 'none';
+  stopButton.classList.add(HIDDEN_CLASS);
 }
 
 function handleEvent(event) {
@@ -536,7 +361,6 @@ function handleEvent(event) {
       handleToolStatus(event);
       break;
     case 'error':
-      // Log full error event for debugging in browser console
       console.error('Stream error event', event);
       handleStreamError(event);
       break;
@@ -551,8 +375,9 @@ function handleLine(line) {
   try {
     const parsed = JSON.parse(line);
     handleEvent(parsed);
-  } catch {
-    // ignore malformed line
+  } catch (err) {
+    // ignore malformed line but log for debugging
+    console.warn('Malformed stream line', line, err);
   }
 }
 
@@ -573,16 +398,6 @@ function decodeChunk(value, options) {
   return result;
 }
 
-function processBufferedText(bufferText) {
-  if (!bufferText) return;
-  const lines = bufferText.split(String.fromCharCode(10));
-  for (const line of lines) {
-    handleLine(line.trim());
-  }
-}
-
-const stopButton = document.getElementById('stop');
-
 class StreamController {
   constructor() {
     this.active = true;
@@ -599,11 +414,21 @@ class StreamController {
   }
 }
 
+let currentStreamController = null;
+
+function redirectToLogin(message) {
+  clearLoginRedirect(message || LOGIN_REDIRECT_MESSAGE);
+}
+
+function handleUnauthenticated(message) {
+  redirectToLogin(message || LOGIN_REDIRECT_MESSAGE);
+}
+
 async function sendMessage(raw) {
   const text = raw.trim();
   if (!text || busy) return;
   if (!sessionState.loggedIn) {
-    showLoginError('Sign in to send messages.');
+    handleUnauthenticated('Sign in to send messages.');
     return;
   }
 
@@ -612,11 +437,14 @@ async function sendMessage(raw) {
   createChatBubble('user', { initialText: text });
 
   textarea.value = '';
+  if (pageShell) {
+    pageShell.classList.remove('composer-has-text');
+  }
+  autoSizeTextarea();
   updateSendState();
   setBusy(true);
-  stopButton.style.display = 'flex';
+  stopButton.classList.remove(HIDDEN_CLASS);
 
-  // Create new stream controller
   currentStreamController = new StreamController();
   assistantPlaceholder = createAssistantStream('', true);
 
@@ -634,7 +462,6 @@ async function sendMessage(raw) {
     }
 
     if (!response.ok) {
-      // Try to read response body for richer debugging info
       let respText = '';
       try {
         respText = await response.text();
@@ -642,7 +469,6 @@ async function sendMessage(raw) {
         respText = '<unreadable response body>';
       }
       const err = new Error('HTTP ' + response.status + ' - ' + response.statusText);
-      // attach details for console inspection
       err.response = { status: response.status, statusText: response.statusText, body: respText };
       throw err;
     }
@@ -668,9 +494,7 @@ async function sendMessage(raw) {
     const tail = buffer.trim();
     if (tail) handleLine(tail);
   } catch (err) {
-    // Log full error object for debugging in browser console
     console.error('sendMessage error', err);
-    // If it's an HTTP error with response body, log that too
     if (err && err.response) {
       if (err.response.status === 401) {
         handleUnauthenticated('Session expired. Please sign in again.');
@@ -678,14 +502,13 @@ async function sendMessage(raw) {
       }
       console.error('HTTP response details:', err.response);
     }
-    // Only report failure to UI if not manually stopped
-    if (currentStreamController.active) {
+    if (currentStreamController && currentStreamController.active) {
       const message = err instanceof Error ? err.message : String(err);
       reportStreamFailure(message);
     }
   } finally {
     setBusy(false);
-    stopButton.style.display = 'none';
+    stopButton.classList.add(HIDDEN_CLASS);
     currentStreamController = null;
   }
 }
@@ -702,15 +525,18 @@ textarea.addEventListener('keydown', (event) => {
   }
 });
 
-if (loginForm) {
-  loginForm.addEventListener('submit', handleLogin);
-}
+textarea.addEventListener('input', () => {
+  updateSendState();
+  autoSizeTextarea();
+});
 
-if (logoutButton) {
-  logoutButton.addEventListener('click', handleLogout);
-}
+textarea.addEventListener('focus', () => {
+  pageShell?.classList.add('composer-focused');
+});
 
-textarea.addEventListener('input', updateSendState);
+textarea.addEventListener('blur', () => {
+  pageShell?.classList.remove('composer-focused');
+});
 
 resetButton.addEventListener('click', (event) => {
   event.preventDefault();
@@ -721,6 +547,19 @@ stopButton.addEventListener('click', (event) => {
   event.preventDefault();
   if (currentStreamController) {
     currentStreamController.abort();
+    setBusy(false);
+    stopButton.classList.add(HIDDEN_CLASS);
+  }
+});
+
+logoutButton?.addEventListener('click', async (event) => {
+  event.preventDefault();
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' });
+  } catch (err) {
+    console.error('Logout request failed', err);
+  } finally {
+    redirectToLogin('You have signed out.');
   }
 });
 
@@ -731,20 +570,94 @@ function resetConversation() {
   clearAssistantPlaceholder();
   transcript.innerHTML = '';
   const initialText = sessionState.loggedIn
-    ? "Hi, I'm the MAS operations assistant. Ask about students, curricula, or dispatch decisions and I'll pull the latest data for you."
-    : 'Sign in to start chatting with the MAS assistant.';
+    ? "Hello! I'm your MAS tutor assistant. Ask about students, pacing, or resources and I'll curate the most relevant guidance for you."
+    : 'Sign in to start a tutoring session.';
   createChatBubble('assistant', { initialText });
   textarea.value = '';
+  pageShell?.classList.remove('composer-has-text', 'has-history');
+  autoSizeTextarea();
   setBusy(false);
   setChatAvailability(sessionState.loggedIn);
   if (sessionState.loggedIn) {
     textarea.focus();
   } else {
-    statusText.textContent = 'Sign in required';
     statusDot.classList.remove('busy');
   }
 }
 
-showAuthPanel();
-resetConversation();
-refreshSession({ silent: true });
+function applySessionState(newState, options = {}) {
+  const resolved = { ...defaultSessionState, ...newState };
+  if (resolved.mode === 'static') {
+    resolved.loggedIn = true;
+    if (!resolved.email) {
+      resolved.email = 'Static token';
+    }
+  }
+
+  const wasLoggedIn = previousSessionLoggedIn;
+  sessionState = resolved;
+  previousSessionLoggedIn = resolved.loggedIn;
+
+  if (sessionEmail) {
+    sessionEmail.textContent = resolved.email ?? 'Tutor';
+  }
+  if (pageShell) {
+    pageShell.classList.toggle('static-session', resolved.mode === 'static');
+  }
+
+  if (!resolved.loggedIn) {
+    setChatAvailability(false);
+    if (!options.silent) {
+      redirectToLogin(options.message || LOGIN_REDIRECT_MESSAGE);
+    }
+    return;
+  }
+
+  setChatAvailability(true);
+  if (resolved.loggedIn && !wasLoggedIn) {
+    resetConversation();
+  }
+  refreshStatusLabel();
+}
+
+async function refreshSession(options = {}) {
+  try {
+    const response = await fetch('/api/auth/session');
+    if (!response.ok) {
+      if (response.status === 401) {
+        applySessionState({ loggedIn: false }, options);
+        return;
+      }
+      throw new Error('Session check failed');
+    }
+    const data = await response.json();
+    applySessionState(
+      {
+        loggedIn: Boolean(data.loggedIn),
+        email: data.email ?? null,
+        mode: data.mode ?? 'interactive',
+      },
+      options,
+    );
+  } catch (err) {
+    console.error('Failed to refresh session', err);
+    if (!sessionState.loggedIn) {
+      setChatAvailability(false);
+    }
+  }
+}
+
+refreshSession({ silent: true }).then(() => {
+  if (sessionState.loggedIn) {
+    resetConversation();
+  }
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    refreshSession({ silent: true });
+  }
+});
+
+autoSizeTextarea();
+updateSendState();

@@ -2,7 +2,15 @@ import type { ResponseFunctionToolCall, ResponseInput } from 'openai/resources/r
 import { createNdjsonWriter } from './streaming';
 import { operationHandlers } from './operationHandlers';
 import { agentContext } from './context';
-import { toNumber } from './utils';
+import type { AgentContext } from './contextShared';
+import {
+  createCacheKey,
+  getCachedList,
+  resolveCurriculumIdFromContext,
+  resolveStudentIdFromContext,
+  updateCurriculumsCache,
+  updateStudentsCache,
+} from './contextHelpers';
 
 export async function executePlatformOperation(
   operation: string,
@@ -12,13 +20,63 @@ export async function executePlatformOperation(
   if (!handler) {
     throw new Error(`Unsupported operation: ${operation}`);
   }
-  // Inject context values if missing
-  if (operation === 'set_learning_volume') {
-    if (!input?.studentCurriculumId && (agentContext as any).studentCurriculumId) {
-      input = { ...input, studentCurriculumId: (agentContext as any).studentCurriculumId };
-    }
+  const context = agentContext as AgentContext;
+  const normalizedInput: Record<string, unknown> = input ? { ...input } : {};
+
+  if (operation === 'set_learning_volume' && !normalizedInput.studentCurriculumId && context.studentCurriculumId) {
+    normalizedInput.studentCurriculumId = context.studentCurriculumId;
   }
-  return handler(input ?? {});
+
+  if (operation === 'grant_student_course' || operation === 'list_student_curriculums' || operation === 'list_study_schedules') {
+    const rawStudentId = normalizedInput.studentId ?? normalizedInput.student_id;
+    const resolvedStudentId = resolveStudentIdFromContext(context, rawStudentId);
+    if (resolvedStudentId === null) {
+      if (rawStudentId === undefined) {
+        throw new Error('studentId is required for this operation.');
+      }
+      throw new Error(
+        `Unable to resolve the student from "${String(rawStudentId)}". Use list_students to look up the numeric ID.`,
+      );
+    }
+    normalizedInput.studentId = resolvedStudentId;
+    normalizedInput.student_id = resolvedStudentId;
+    context.studentId = resolvedStudentId;
+  }
+
+  if (operation === 'grant_student_course') {
+    const rawCurriculumId = normalizedInput.curriculumId ?? normalizedInput.curriculum_id;
+    const resolvedCurriculumId = resolveCurriculumIdFromContext(context, rawCurriculumId);
+    if (resolvedCurriculumId === null) {
+      if (rawCurriculumId === undefined) {
+        throw new Error('curriculumId is required for this operation.');
+      }
+      throw new Error(
+        `Unable to resolve the curriculum from "${String(rawCurriculumId)}". Use list_curriculums to find the numeric ID.`,
+      );
+    }
+    normalizedInput.curriculumId = resolvedCurriculumId;
+    normalizedInput.curriculum_id = resolvedCurriculumId;
+    context.curriculumId = resolvedCurriculumId;
+  }
+
+  if (operation === 'list_students' || operation === 'list_curriculums') {
+    const cacheKey = createCacheKey(normalizedInput);
+    const cached = operation === 'list_students'
+      ? getCachedList(context.studentsCache, cacheKey)
+      : getCachedList(context.curriculumsCache, cacheKey);
+    if (cached) {
+      return cached;
+    }
+    const result = await handler(normalizedInput);
+    if (operation === 'list_students') {
+      updateStudentsCache(context, result, cacheKey);
+    } else {
+      updateCurriculumsCache(context, result, cacheKey);
+    }
+    return result;
+  }
+
+  return handler(normalizedInput);
 }
 
 export async function runToolCall(
@@ -36,13 +94,6 @@ export async function runToolCall(
   try {
     const result = await executePlatformOperation(args.operation, args.input);
     // Store context after relevant operations
-    if (args.operation === 'grant_student_course') {
-      // Save studentId and curriculumId
-      const sid = toNumber(args.input?.studentId ?? args.input?.student_id);
-      (agentContext as any).studentId = sid === null ? undefined : sid;
-      const cid = toNumber(args.input?.curriculumId ?? args.input?.curriculum_id);
-      (agentContext as any).curriculumId = cid === null ? undefined : cid;
-    }
     if (args.operation === 'list_student_curriculums' && result) {
       // Find the latest studentCurriculumId for the current student/curriculum
       const arr = Array.isArray(result) ? result : (result as any)?.data;

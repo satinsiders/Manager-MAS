@@ -4,7 +4,7 @@ import handler from './index';
 import type { VercelRequest, VercelResponse } from '../../packages/shared/vercel';
 
 describe('chat-ui handler', () => {
-  it('serves HTML page', async () => {
+  it('serves login page at root', async () => {
     const req = { 
       method: 'GET', 
       url: '/',
@@ -35,7 +35,40 @@ describe('chat-ui handler', () => {
     assert.equal(status, 200);
     assert.equal(headers.get('Content-Type'), 'text/html; charset=utf-8');
     assert(content.includes('<!DOCTYPE html>'));
-    assert(content.includes('Manager MAS'));
+    assert(content.includes('data-page="login"'));
+    assert(content.includes('MAS Tutor Console'));
+  });
+
+  it('serves chat page', async () => {
+    const req = {
+      method: 'GET',
+      url: '/chat',
+      query: {},
+      cookies: {},
+    } as unknown as VercelRequest;
+
+    let content = '';
+    let status = 0;
+    const headers = new Map<string, string>();
+
+    const res = {
+      setHeader: (name: string, value: string) => {
+        headers.set(name, value);
+      },
+      end: (data: string) => {
+        content = data;
+      },
+      set statusCode(code: number) {
+        status = code;
+      },
+    } as unknown as VercelResponse;
+
+    await handler(req, res);
+
+    assert.equal(status, 200);
+    assert.equal(headers.get('Content-Type'), 'text/html; charset=utf-8');
+    assert(content.includes('data-page="chat"'));
+    assert(content.includes('Mission Assistant'));
   });
 
   it('returns 405 for non-GET requests', async () => {

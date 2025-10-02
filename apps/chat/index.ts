@@ -5,13 +5,12 @@ import type {
   ResponseInput,
   Tool,
 } from 'openai/resources/responses/responses';
-import { platformJson } from '../../packages/shared/platform';
 import {
   hasStaticPlatformToken,
   isPlatformAuthConfigured,
 } from '../../packages/shared/platformAuth';
 import { openai } from './lib/openaiClient';
-import { systemPrompt, platformTool, PLATFORM_OPERATIONS, type PlatformOperation, type PlatformToolArgs } from './lib/llm';
+import { systemPrompt, platformTool, type PlatformOperation } from './lib/llm';
 import {
   getCurrentSessionId,
   getSession,
@@ -47,14 +46,16 @@ import {
   isPlatformOperation,
 } from './lib/helpers';
 
-import { buildQuery, toNumber, isKnownMutationSuccess } from './lib/utils';
-import operationHandlers, { confirmAssignment, confirmLearningVolume } from './lib/operationHandlers';
-
-type AgentContext = {
-  studentId?: number;
-  curriculumId?: number;
-  studentCurriculumId?: number;
-};
+import operationHandlers from './lib/operationHandlers';
+import type { AgentContext } from './lib/contextShared';
+import {
+  createCacheKey,
+  getCachedList,
+  resolveCurriculumIdFromContext,
+  resolveStudentIdFromContext,
+  updateCurriculumsCache,
+  updateStudentsCache,
+} from './lib/contextHelpers';
 
 const STATIC_SESSION_KEY = '__static__';
 const agentContexts = new Map<string, AgentContext>();
@@ -103,14 +104,63 @@ async function executePlatformOperation(
   if (!handler) {
     throw new Error(`Unsupported operation: ${operation}`);
   }
-  // Inject context values if missing
-  if (operation === 'set_learning_volume') {
-    if (!input?.studentCurriculumId && agentContext.studentCurriculumId) {
-      input = { ...input, studentCurriculumId: agentContext.studentCurriculumId };
-    }
+  const normalizedInput: Record<string, unknown> = input ? { ...input } : {};
+
+  if (operation === 'set_learning_volume' && !normalizedInput.studentCurriculumId && agentContext.studentCurriculumId) {
+    normalizedInput.studentCurriculumId = agentContext.studentCurriculumId;
   }
+
+  if (operation === 'grant_student_course' || operation === 'list_student_curriculums' || operation === 'list_study_schedules') {
+    const rawStudentId = normalizedInput.studentId ?? normalizedInput.student_id;
+    const resolvedStudentId = resolveStudentIdFromContext(agentContext, rawStudentId);
+    if (resolvedStudentId === null) {
+      if (rawStudentId === undefined) {
+        throw new Error('studentId is required for this operation.');
+      }
+      throw new Error(
+        `Unable to resolve the student from "${String(rawStudentId)}". Use list_students to look up the numeric ID.`,
+      );
+    }
+    normalizedInput.studentId = resolvedStudentId;
+    normalizedInput.student_id = resolvedStudentId;
+    agentContext.studentId = resolvedStudentId;
+  }
+
+  if (operation === 'grant_student_course') {
+    const rawCurriculumId = normalizedInput.curriculumId ?? normalizedInput.curriculum_id;
+    const resolvedCurriculumId = resolveCurriculumIdFromContext(agentContext, rawCurriculumId);
+    if (resolvedCurriculumId === null) {
+      if (rawCurriculumId === undefined) {
+        throw new Error('curriculumId is required for this operation.');
+      }
+      throw new Error(
+        `Unable to resolve the curriculum from "${String(rawCurriculumId)}". Use list_curriculums to find the numeric ID.`,
+      );
+    }
+    normalizedInput.curriculumId = resolvedCurriculumId;
+    normalizedInput.curriculum_id = resolvedCurriculumId;
+    agentContext.curriculumId = resolvedCurriculumId;
+  }
+
+  if (operation === 'list_students' || operation === 'list_curriculums') {
+    const cacheKey = createCacheKey(normalizedInput);
+    const cached = operation === 'list_students'
+      ? getCachedList(agentContext.studentsCache, cacheKey)
+      : getCachedList(agentContext.curriculumsCache, cacheKey);
+    if (cached) {
+      return cached;
+    }
+    const result = await handler(normalizedInput, signal);
+    if (operation === 'list_students') {
+      updateStudentsCache(agentContext, result, cacheKey);
+    } else {
+      updateCurriculumsCache(agentContext, result, cacheKey);
+    }
+    return result;
+  }
+
   // Pass the abort signal to the operation handler so platform HTTP calls can be cancelled
-  return handler(input ?? {}, signal);
+  return handler(normalizedInput, signal);
 }
 
 
@@ -131,13 +181,6 @@ async function runToolCall(
   try {
     const result = await executePlatformOperation(args.operation, args.input, signal);
     // Store context after relevant operations
-    if (args.operation === 'grant_student_course') {
-      // Save studentId and curriculumId
-  const sid = toNumber(args.input?.studentId ?? args.input?.student_id);
-  agentContext.studentId = sid === null ? undefined : sid;
-  const cid = toNumber(args.input?.curriculumId ?? args.input?.curriculum_id);
-  agentContext.curriculumId = cid === null ? undefined : cid;
-    }
     if (args.operation === 'list_student_curriculums' && result) {
       // Find the latest studentCurriculumId for the current student/curriculum
       const arr = Array.isArray(result) ? result : (result as any)?.data;
