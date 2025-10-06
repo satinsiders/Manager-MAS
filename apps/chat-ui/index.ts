@@ -102,20 +102,6 @@ const chatHtml = `<!DOCTYPE html>
       </div>
     </header>
     <main class="chat-shell">
-      <aside class="context-panel" aria-label="Session insights">
-        <h2>Session insights</h2>
-        <p>Use the assistant to plan lessons, analyze student performance, or launch platform automations without leaving the console.</p>
-        <ul class="insight-list">
-          <li><strong>Curriculum pulse.</strong> Ask for pacing guidance, remediation steps, and course unlocks tailored to your roster.</li>
-          <li><strong>Student snapshots.</strong> Surface strengths, flags, and recent activity to prep for upcoming meetings.</li>
-          <li><strong>Actionable automations.</strong> Trigger schedule changes or resource drops with human-in-the-loop confirmations.</li>
-        </ul>
-        <div class="status-card">
-          <div class="status-pill">Live session</div>
-          <p class="status-heading">Connected to MAS Platform</p>
-          <p class="status-copy">Conversations remain ephemeral and scoped to your current tutor account.</p>
-        </div>
-      </aside>
       <section class="conversation-panel" aria-label="Assistant conversation">
         <div class="panel-header">
           <div class="status-cluster">
@@ -151,6 +137,143 @@ const chatHtml = `<!DOCTYPE html>
           </div>
         </form>
       </section>
+      <aside class="mission-hub" aria-label="Operations hub">
+        <header class="hub-header">
+          <div class="hub-heading">
+            <p class="hub-eyebrow">Mission Hub</p>
+            <h2 class="hub-title">Classroom command center</h2>
+            <p id="hub-updated" class="hub-updated">Loading operations snapshot…</p>
+          </div>
+          <div class="hub-actions">
+            <button id="sync-insights" type="button" class="hub-button" disabled>
+              Sync data
+            </button>
+          </div>
+        </header>
+
+        <section class="hub-card hub-sync" aria-label="Sync queue">
+          <header class="hub-card-header">
+            <h3 class="hub-card-title">Sync queue</h3>
+            <span class="hub-card-subtitle">Track platform refresh jobs</span>
+          </header>
+          <p id="hub-error" class="hub-error hidden" role="alert"></p>
+          <ul id="sync-progress" class="hub-progress">
+            <li class="hub-progress-placeholder">No sync running.</li>
+          </ul>
+          <p id="sync-status" class="hub-footnote" aria-live="polite"></p>
+        </section>
+
+        <div class="hub-scroll">
+          <section class="hub-card hub-pulse" aria-label="Mission pulse">
+            <header class="hub-card-header">
+              <h3 class="hub-card-title">Mission pulse</h3>
+              <span class="hub-card-subtitle">Key classroom signals</span>
+            </header>
+            <dl class="hub-metric-grid">
+              <div class="hub-metric">
+                <dt>Active learners</dt>
+                <dd id="metric-active-students">—</dd>
+                <span class="hub-footnote">Engaged in last 24h</span>
+              </div>
+              <div class="hub-metric">
+                <dt>Flagged</dt>
+                <dd id="metric-flagged-students">—</dd>
+                <span class="hub-footnote">Needing attention</span>
+              </div>
+              <div class="hub-metric">
+                <dt>Idle (7d)</dt>
+                <dd id="metric-idle-students">—</dd>
+                <span class="hub-footnote">No recent activity</span>
+              </div>
+              <div class="hub-metric">
+                <dt>Open drafts</dt>
+                <dd id="metric-open-drafts">—</dd>
+                <span class="hub-footnote">Awaiting publish</span>
+              </div>
+            </dl>
+          </section>
+
+          <section class="hub-card hub-roster" aria-label="Learner roster">
+            <header class="hub-card-header">
+              <div>
+                <h3 class="hub-card-title">Learners</h3>
+                <span class="hub-card-subtitle">Roster snapshot</span>
+              </div>
+              <div class="hub-chip-group">
+                <span id="roster-count" class="hub-chip">— learners</span>
+                <button id="roster-toggle" class="hub-chip hub-chip-action" type="button" aria-expanded="true">
+                  <span class="hub-chip-icon">▾</span>
+                  <span class="hub-chip-label">Collapse</span>
+                </button>
+              </div>
+            </header>
+            <ul id="roster-list" class="hub-roster-list" aria-live="polite">
+              <li class="hub-placeholder">Loading learners…</li>
+            </ul>
+          </section>
+
+          <section class="hub-card hub-signals" aria-label="Alerts">
+            <header class="hub-card-header">
+              <h3 class="hub-card-title">Signals</h3>
+              <span class="hub-card-subtitle">Automated alerts and watchlists</span>
+            </header>
+            <ul id="signal-list" class="hub-stack">
+              <li class="hub-placeholder">No alerts detected.</li>
+            </ul>
+          </section>
+
+          <section class="hub-card hub-drafts" aria-label="Study plan drafts">
+            <header class="hub-card-header">
+              <h3 class="hub-card-title">Drafts</h3>
+              <span class="hub-card-subtitle">Latest plan revisions awaiting review</span>
+            </header>
+            <ul id="drafts-list" class="hub-stack">
+              <li class="hub-placeholder">All study plans are up to date.</li>
+            </ul>
+          </section>
+
+          <section class="hub-card hub-plan" aria-label="Plan console">
+            <header class="hub-card-header">
+              <h3 class="hub-card-title">Plan console</h3>
+              <span class="hub-card-subtitle">Review, edit, and publish learner plans</span>
+            </header>
+            <div class="hub-field">
+              <label for="student-selector">Learner</label>
+              <select id="student-selector" disabled>
+                <option value="">Sign in to load learners</option>
+              </select>
+            </div>
+            <article id="plan-summary" class="plan-summary-panel">
+              <p class="hub-placeholder">Select a learner to view their plan.</p>
+            </article>
+            <div class="plan-editor-stack">
+              <label for="plan-editor">Plan scratchpad</label>
+              <textarea
+                id="plan-editor"
+                rows="8"
+                spellcheck="false"
+                disabled
+                placeholder="Plan JSON or notes will appear here for editing"
+              ></textarea>
+              <div class="plan-controls-row">
+                <button id="plan-save-draft" type="button" disabled>Save draft</button>
+                <button id="plan-publish-draft" type="button" class="ghost-button" disabled>Publish</button>
+              </div>
+              <p id="plan-status" class="hub-footnote" aria-live="polite"></p>
+            </div>
+          </section>
+
+          <section class="hub-card hub-activity" aria-label="Recent activity">
+            <header class="hub-card-header">
+              <h3 class="hub-card-title">Activity log</h3>
+              <span class="hub-card-subtitle">Automations in the last 24h</span>
+            </header>
+            <ul id="activity-list" class="hub-stack">
+              <li class="hub-placeholder">Recent actions will appear here.</li>
+            </ul>
+          </section>
+        </div>
+      </aside>
     </main>
     <footer class="footer">
       <p>Tutors stay in control: every automation surfaces status updates and can be rolled back instantly.</p>

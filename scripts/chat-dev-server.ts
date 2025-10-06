@@ -3,6 +3,12 @@ import { parse } from 'url';
 import authHandler from '../apps/auth/index';
 import chatHandler from '../apps/chat/index';
 import chatUIHandler from '../apps/chat-ui/index';
+import studyPlanHandler from '../apps/study-plans/index';
+import dashboardHandler from '../apps/dashboard/index';
+import activityLogHandler from '../apps/activity-log/index';
+import platformRefreshHandler from '../apps/platform-sync/refresh';
+import platformRefreshStartHandler from '../apps/platform-sync/refresh-start';
+import platformRefreshStatusHandler from '../apps/platform-sync/refresh-status';
 import type { VercelRequest, VercelResponse } from '../packages/shared/vercel';
 import { parseCookieHeader } from '../packages/shared/authSessions';
 
@@ -78,6 +84,42 @@ createServer(async (incoming, outgoing) => {
     // Handle chat API requests first
     if (req.url?.startsWith('/api/chat')) {
       await chatHandler(req, res);
+      return;
+    }
+
+    if (req.url?.startsWith('/api/study-plans')) {
+      req.url = req.url.replace('/api/study-plans', '') || '/';
+      await studyPlanHandler(req, res);
+      return;
+    }
+
+    if (req.url?.startsWith('/api/platform-sync/refresh/start')) {
+      req.url = req.url.replace('/api/platform-sync/refresh/start', '') || '/';
+      await platformRefreshStartHandler(req, res);
+      return;
+    }
+
+    if (req.url?.startsWith('/api/platform-sync/refresh/status')) {
+      req.url = req.url.replace('/api/platform-sync/refresh/status', '') || '/';
+      await platformRefreshStatusHandler(req, res);
+      return;
+    }
+
+    if (req.url?.startsWith('/api/platform-sync/refresh')) {
+      req.url = req.url.replace('/api/platform-sync/refresh', '') || '/';
+      await platformRefreshHandler(req, res);
+      return;
+    }
+
+    if (req.url?.startsWith('/api/dashboard')) {
+      req.url = req.url.replace('/api/dashboard', '') || '/';
+      await dashboardHandler(req, res);
+      return;
+    }
+
+    if (req.url?.startsWith('/api/activity-log')) {
+      req.url = req.url.replace('/api/activity-log', '') || '/';
+      await activityLogHandler(req, res);
       return;
     }
 

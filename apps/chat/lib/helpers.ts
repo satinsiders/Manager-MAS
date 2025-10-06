@@ -1,6 +1,5 @@
 import type { VercelRequest } from '../../../packages/shared/vercel';
 import type { Response, ResponseFunctionToolCall, ResponseInput } from 'openai/resources/responses/responses';
-import { buildQuery, toNumber } from './utils';
 import type { PlatformToolArgs, PlatformOperation } from './llm';
 import { PLATFORM_OPERATIONS } from './llm';
 

@@ -20,10 +20,10 @@ This guide walks through deploying the chat console (+ API) to Render as a Node 
 
 ## 3. Configure environment variables
 Review `.env.example` and add the values Render should use:
-- All Supabase credentials
-- OpenAI key
-- Platform URLs/secrets (`SUPERFASTSAT_*`, dispatcher URLs, etc.)
-- MAS internal secrets (`ORCHESTRATOR_SECRET`, `SCHEDULER_SECRET`)
+- Supabase credentials (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`)
+- `OPENAI_API_KEY`
+- Platform configuration (`SUPERFASTSAT_API_URL` and optional `SUPERFASTSAT_API_TOKEN`)
+- `NOTIFICATION_BOT_URL`
 
 In Render:
 1. For each variable listed in `render.yaml`, add a secret value (Render prompts for any `sync: false` entry).
@@ -41,7 +41,7 @@ The blueprint pins `NODE_VERSION=20` and `NPM_CONFIG_PRODUCTION=false` so dev de
 
 ## 5. Post-deploy checklist
 - Exercise the UI to verify streaming chat and operations.
-- Confirm the background tool calls reach the platform and Supabase (check logs and platform dashboards).
+- Exercise the data ingestion endpoints (`/api/platform-sync`, `/api/performance-recorder`, `/api/assessments`) to confirm Supabase mirrors update as expected.
 - Set up Render alerts (e.g., on deploy failure) and schedule auto-deploys on every Git push.
 - If you need staging + production, duplicate the service with different branches/secrets.
 

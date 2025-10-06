@@ -24,24 +24,33 @@ Note on terms: “Curriculum” refers to the platform-owned scaffolding of less
 - Each unit is tagged with the expected number of minutes needed to solve it.
 - When curricula are assigned to students, they remain hidden until content is explicitly **sent** on the LMS.
 - From the student's profile, the teacher can browse all available curricula, assign them, and dispatch units within the selected curriculum in minute-based volumes. Sending 10 minutes delivers enough units to total that time (e.g., ten 1‑minute questions). Curriculum titles reflect the question type (e.g., `[information and ideas] > Inferences`).
-- Manager MAS uses 커리큘럼 목록 조회 (`GET /curriculums`) and 학생 커리큘럼 수강권 지급 (`POST /courses`) to replicate that assignment flow programmatically before dispatching minutes.
+- Manager MAS will use 커리큘럼 목록 조회 (`GET /curriculums`) and 학생 커리큘럼 수강권 지급 (`POST /courses`) to replicate that assignment flow programmatically once the dispatcher is rebuilt.
 - After reviewing average correctness and confidence ratings, the teacher decides whether to keep sending units from the current curriculum or assign a new one. When a student demonstrates mastery in a question type—often 100% correctness across sufficient practice—the teacher advances to a different question type.
 
 ## 2. Agents & One-Sentence Contracts
 
+Active endpoints today:
+
 | Agent | Trigger | Responsibility |
 |-------|---------|----------------|
-| Chat Console | Teacher prompt via chat UI | Stream GPT-5 responses, invoke `platform_api_call`, and hand follow-up work to downstream agents when automation is required. |
-| Scheduler | GitHub Actions cron | Call daily and weekly jobs at the exact time. |
-| Orchestrator | All triggers | Pass context to required sub-agents and manage retries and logging. |
-| Dispatcher | Immediately after selection | Send curriculum units and metadata to the SuperfastSAT platform and record in `dispatch_log`. |
+| Chat Console | Teacher prompt via chat UI | Stream GPT-5 responses, invoke `platform_api_call`, and surface Supabase/Platform context in plain language. |
+| Platform Sync | Manual webhook or scheduled job | Mirror platform dispatch lists and daily performance summaries into Supabase mirrors. |
 | Performance Recorder | Upon score arrival | Append `{student_id, study_plan_id, score, confidence_rating}` to the `performances` table. |
-| Data Aggregator | Fri 23:00 | Generate `performance_summary.json` by combining weekly performances and charts. |
-| Study Plan Editor | After aggregation | Produce new `studyplan_v(X+1)` JSON using GPT‑5 responses. |
-| QA & Formatter | Immediately after edit | Validate JSON schema/style and update student pointers to the new version. |
-| Notification Bot | Success/failure hooks | Notify key events via Slack DM. |
+| Assessments | Diagnostic or full-length score upload | Normalize section scores, estimate a composite, and persist the record. |
+| Admin Audit | On-demand report | Return recent decision/action history plus optional dispatch snapshots for a student.
 
-📊 The "weekly performance chart" is generated automatically by a separate code module (not an agent) and referenced by the Data Aggregator.
+Planned rebuilds (removed from the current codebase but kept in documentation for future work):
+
+| Agent | Status | Responsibility |
+|-------|--------|----------------|
+| Orchestrator | To be rebuilt | Coordinate multi-step automations driven by the chat agent. |
+| Dispatcher | To be rebuilt | Send curriculum minutes to the platform and log delivery results. |
+| Lesson Picker | To be rebuilt | Recommend the next curriculum bundle + minutes based on recent performance. |
+| Data Aggregator | To be rebuilt | Produce weekly summaries and charts fed to the chat agent. |
+| Study Plan Editor | To be rebuilt | Draft new study plans using LLM guidance and latest performance. |
+| QA & Formatter | To be rebuilt | Validate and promote study plan drafts. |
+
+📊 The "weekly performance chart" utility remains in the repository history and will be reintroduced alongside the Data Aggregator rebuild.
 
 ## 3. Standard Data Schema (Supabase PostgreSQL)
 
@@ -73,10 +82,10 @@ Beyond platform data, the system separately records:
 
 | Level | Storage Location | TTL/Version | Used By |
 |-------|------------------|-------------|---------|
-| Working Memory | Vercel function process object | Minutes to hours | Orchestrator & current chain |
-| Short-Term Memory | Supabase tables `draft_cache`, `student_recent_scores` | Configurable (`DRAFT_TTL`, score TTL) | Orchestrator, Lesson Picker |
-| Long-Term Memory | Supabase (PostgreSQL) | Permanent, versioned | All agents |
-| External Evidence | Supabase Storage (or AWS S3), Notion | Permanent | QA & audit |
+| Working Memory | Vercel function process object | Minutes to hours | Chat console request lifecycle |
+| Short-Term Memory | Supabase tables `draft_cache`, `student_recent_scores` | Configurable (`DRAFT_TTL`, score TTL) | Reserved for future orchestration components |
+| Long-Term Memory | Supabase (PostgreSQL) | Permanent, versioned | Chat console & data ingestion services |
+| External Evidence | Supabase Storage (or AWS S3), Notion | Permanent | Audit/reporting workflows |
 
 Accuracy priority: External evidence > Long-term > Short-term > Working.
 
@@ -89,12 +98,11 @@ run completes.
 
 | Agent | READS | WRITES |
 |-------|-------|--------|
-| Dispatcher | `students`, `studyplans`, `dispatch_mirror` | `dispatch_log(status)` |
-| Performance Recorder | – | `performances` |
-| Data Aggregator | `performances`, `daily_performance_mirror`, `dispatch_mirror`, charts 📊 | Supabase Storage `performance_summary.json` |
-| Study Plan Editor | `performance_summary` | `studyplan_drafts` |
-| QA & Formatter | `studyplan_drafts` | `studyplans`, `students.current_studyplan_version` |
-| Notification Bot | Event stream | Slack |
+| Chat Console | Supabase mirrors (`students`, `dispatch_mirror`, `daily_performance_mirror`) and platform APIs | Platform APIs only |
+| Platform Sync | `students`, platform dispatch/performance endpoints | `platform_dispatches`, `dispatch_log`, `daily_performance_mirror`, `curriculum_catalog`, roster mirrors |
+| Performance Recorder | – | `performances`, `student_recent_scores` |
+| Assessments | – | `assessments` |
+| Admin Audit | `mas_decisions`, `mas_actions`, `dispatch_log` | – |
 
 ## 6. Infrastructure Stack (Blueprint 1)
 
@@ -103,18 +111,20 @@ run completes.
 | Relational DB | Supabase (PostgreSQL + RLS + pgvector) |
 | Object Storage | Supabase Storage (with optional AWS S3) |
 | Cache/STM | Supabase (`draft_cache`, `student_recent_scores`) |
-| Scheduling | GitHub Actions cron |
+| Scheduling | External (GitHub Actions or Render jobs) — optional until orchestration returns |
 | Runtime | Vercel Functions (Node/TS, OpenAI SDK) |
 | Observability | GitHub Actions logs + Slack Webhook (Grafana optional) |
 
 ## 7. Four-Week Build Roadmap
 
+Legacy roadmap for the automation rebuild:
+
 | Week | Goal | Deliverables |
 |------|------|--------------|
-| Week 1 | MVP daily loop | Create tables & dispatcher → test with one student |
-| Week 2 | Performance logging + supplements | Auto record scores, send problem sets to students |
-| Week 3 | Weekly loop | Data aggregator & studyplan editor → produce v2 studyplan |
-| Week 4 | Hardening | Slack notifications, optional Grafana dashboard, batch process >100 students |
+| Week 1 | Restore planning primitives | Re-introduce lesson picker scaffolding and reconnect recent-score context |
+| Week 2 | Rebuild dispatch loop | Implement dispatcher + platform write path with Supabase mirrors |
+| Week 3 | Resume weekly updates | Bring back data aggregator and study plan editor with QA hooks |
+| Week 4 | Hardening | Add QA tooling, Slack notifications, and scale testing across >100 students |
 
 ## 8. Impact Points
 

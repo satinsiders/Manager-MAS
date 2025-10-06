@@ -21,19 +21,6 @@ import {
   withSessionContextAsync,
 } from '../../packages/shared/authSessions';
 
-import type {
-  ChatRole,
-  ChatMessage,
-  ChatRequestBody,
-  AssistantDeltaEvent,
-  AssistantMessageEvent,
-  ToolStatusEvent,
-  DoneEvent,
-  ErrorEvent,
-  StreamEvent,
-} from './lib/types';
-
-
 const tool = platformTool;
 
 import { createNdjsonWriter } from './lib/streaming';
@@ -48,6 +35,7 @@ import {
 
 import operationHandlers from './lib/operationHandlers';
 import type { AgentContext } from './lib/contextShared';
+import type { StudentWithStudyPlan } from '../../packages/shared/studyPlans';
 import {
   createCacheKey,
   getCachedList,
@@ -55,6 +43,7 @@ import {
   resolveStudentIdFromContext,
   updateCurriculumsCache,
   updateStudentsCache,
+  extractStudentLookupFromSnapshot,
 } from './lib/contextHelpers';
 
 const STATIC_SESSION_KEY = '__static__';
@@ -154,13 +143,41 @@ async function executePlatformOperation(
     if (operation === 'list_students') {
       updateStudentsCache(agentContext, result, cacheKey);
     } else {
-      updateCurriculumsCache(agentContext, result, cacheKey);
+    updateCurriculumsCache(agentContext, result, cacheKey);
     }
     return result;
   }
 
   // Pass the abort signal to the operation handler so platform HTTP calls can be cancelled
-  return handler(normalizedInput, signal);
+  const result = await handler(normalizedInput, signal);
+
+  if (operation === 'get_study_plan' && result && typeof result === 'object') {
+    const snapshot = (result as any)?.snapshot ?? result;
+    if (snapshot?.active_plan?.id) {
+      agentContext.studyPlanId = snapshot.active_plan.id;
+      agentContext.studyPlanVersion = snapshot.active_plan.version;
+    }
+    if (snapshot?.student) {
+      agentContext.lastStudentSnapshot = snapshot.student;
+      const lookup = extractStudentLookupFromSnapshot(snapshot);
+      if (lookup) {
+        agentContext.studentNameLookup = lookup;
+      }
+    }
+    agentContext.lastPlanSnapshot = snapshot;
+  }
+
+  if (operation === 'publish_study_plan' && result && typeof result === 'object') {
+    const published = (result as any)?.plan ?? result;
+    if (published?.id) {
+      agentContext.studyPlanId = published.id;
+    }
+    if (typeof published?.version === 'number') {
+      agentContext.studyPlanVersion = published.version;
+    }
+  }
+
+  return result;
 }
 
 

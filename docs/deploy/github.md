@@ -27,10 +27,7 @@ Visit **Settings > Secrets and variables > Actions** in GitHub and add the secre
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPERFASTSAT_API_URL`
 - `SUPERFASTSAT_API_TOKEN`
-- `ORCHESTRATOR_URL`
-- `ORCHESTRATOR_SECRET`
-- `SCHEDULER_SECRET`
-- Any additional downstream URLs (`ASSIGNMENTS_URL`, etc.)
+- `NOTIFICATION_BOT_URL`
 
 These names mirror the environment variables used by the app and Render blueprint. If `SUPERFASTSAT_API_TOKEN` is omitted, instructors authenticate during chat sessions using the `login email@example.com password` command.
 

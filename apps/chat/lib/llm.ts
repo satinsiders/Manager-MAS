@@ -12,6 +12,8 @@ STREAMING & STYLE GUIDELINES:
 - Do not mention internal fields like studentId, curriculumId, or studentCurriculumId; describe people and content by their names or roles.
 - When you call a platform operation, mention it to the user using conversational phrasing (e.g., “I'll assign Algebra 1 to Jordan”) and summarize what changed.
 - When you plan to call a platform operation, write the operation name and required fields as short lines so they can stream cleanly.
+- Pull the latest study plan with get_study_plan whenever you need to reference sequencing, progress, or pacing for a student.
+- Save edits with save_study_plan_draft before publishing; only call publish_study_plan when the update is ready for instructors.
 
 AUTHENTICATION WORKFLOW:
 - If platform access is unavailable, prompt the user to sign in by sending a single message in the format 'login email@example.com password'.
@@ -30,6 +32,11 @@ export const PLATFORM_OPERATIONS = [
   'list_curriculums',
   'set_learning_volume',
   'grant_student_course',
+  'get_study_plan',
+  'list_study_plan_versions',
+  'list_study_plan_drafts',
+  'save_study_plan_draft',
+  'publish_study_plan',
 ] as const;
 
 export type PlatformOperation = (typeof PLATFORM_OPERATIONS)[number];
@@ -42,7 +49,7 @@ export type PlatformToolArgs = {
 export const platformTool: Tool = {
   type: 'function',
   name: 'platform_api_call',
-  description: `Call a SuperfastSAT teacher API to manage students, curriculums, and learning schedules.
+  description: `Call a SuperfastSAT teacher API or Supabase helper to manage students, curricula, learning schedules, and study plans.
 
   Recommended workflow for content dispatch:
   1. Information Gathering:
@@ -74,6 +81,13 @@ export const platformTool: Tool = {
   - Always get studentCurriculumId from list_student_curriculums AFTER granting a course
   - Verify grant_student_course success before setting schedule
   - DO NOT send raw API responses to user - analyze and summarize in teacher-friendly language without referencing IDs
+
+  Study plan helpers (Supabase):
+  - get_study_plan(studentId) → fetch student details, current plan, progress, drafts, and recent versions
+  - list_study_plan_versions(studentId) → list recent immutable plan versions
+  - list_study_plan_drafts(studentId) → list editable drafts awaiting publication
+  - save_study_plan_draft(studentId, plan, version?) → create/update a draft; omit version to auto-increment
+  - publish_study_plan(studentId, draftVersion? or plan) → write immutable version and update the student's active plan
   `,
   strict: false,
   parameters: {
@@ -89,15 +103,15 @@ export const platformTool: Tool = {
         description: 'Operation parameters',
         properties: {
           studentId: {
-            type: 'number',
-            description: 'Student ID for operations that target a specific student'
+            type: ['number', 'string'],
+            description: 'Student identifier (numeric platform ID or UUID) for targeted operations'
           },
           curriculumId: {
             type: 'number',
             description: 'Curriculum ID for curriculum-specific operations'
           },
           student_id: {
-            type: 'number',
+            type: ['number', 'string'],
             description: 'Alternative field name for studentId'
           },
           curriculum_id: {

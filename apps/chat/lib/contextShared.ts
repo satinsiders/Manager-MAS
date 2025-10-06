@@ -12,8 +12,12 @@ export type AgentContext = {
   studentId?: number;
   curriculumId?: number;
   studentCurriculumId?: number;
+  lastStudentSnapshot?: any;
+  lastPlanSnapshot?: any;
   studentsCache?: CachedList;
   curriculumsCache?: CachedList;
   studentNameLookup?: NameLookup;
   curriculumNameLookup?: NameLookup;
+  studyPlanId?: string;
+  studyPlanVersion?: number;
 };

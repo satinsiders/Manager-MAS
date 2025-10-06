@@ -1,14 +1,3 @@
-export type ChatRole = 'user' | 'assistant';
-
-export type ChatMessage = {
-  role: ChatRole;
-  content: string;
-};
-
-export type ChatRequestBody = {
-  messages?: ChatMessage[];
-};
-
 export type AssistantDeltaEvent = {
   type: 'assistant_delta';
   delta: string;

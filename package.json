@@ -8,7 +8,7 @@
     "chat:serve": "node dist/scripts/chat-dev-server.js",
     "start": "npm run chat:serve",
     "build": "tsc",
-    "test": "tsc -p tsconfig.json --noEmit && tsx apps/curriculum-editor/index.test.ts && tsx apps/qa-formatter/index.test.ts && tsx apps/lesson-picker/index.test.ts && tsx apps/dispatcher/index.test.ts && tsx apps/platform-sync/index.test.ts && tsx apps/orchestrator/index.test.ts && tsx apps/performance-recorder/index.test.ts && tsx apps/data-aggregator/index.test.ts && tsx apps/notification-bot/index.test.ts && tsx apps/scheduler/index.test.ts && tsx packages/shared/memory.test.ts"
+    "test": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json && node dist/apps/platform-sync/index.test.js && node dist/apps/platform-sync/students.test.js && node dist/apps/performance-recorder/index.test.js && node dist/apps/study-plans/index.api.test.js && node dist/apps/dashboard/index.api.test.js && node dist/apps/activity-log/index.api.test.js && node dist/packages/shared/memory.test.js && node dist/packages/shared/studyPlans.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

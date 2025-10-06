@@ -248,3 +248,26 @@ export function resolveCurriculumIdFromContext(context: AgentContext, raw: unkno
   }
   return lookup.byName.get(normalized) ?? null;
 }
+
+export function extractStudentLookupFromSnapshot(snapshot: any): NameLookup | undefined {
+  if (!snapshot || typeof snapshot !== 'object') return undefined;
+  const collected: Array<{ id: unknown; name: unknown }> = [];
+  if (snapshot.student && typeof snapshot.student === 'object') {
+    const studentObj = snapshot.student as Record<string, unknown>;
+    collected.push({
+      id: studentObj.platform_student_id ?? studentObj.platformStudentId ?? studentObj.id,
+      name: studentObj.name ?? studentObj.display_name ?? studentObj.displayName,
+    });
+  }
+  const roster = Array.isArray(snapshot.roster) ? snapshot.roster : [];
+  for (const item of roster) {
+    if (!item || typeof item !== 'object') continue;
+    const record = item as Record<string, unknown>;
+    collected.push({
+      id: record.platformStudentId ?? record.studentId ?? record.student_id,
+      name: record.name ?? record.display_name ?? record.displayName,
+    });
+  }
+  if (!collected.length) return undefined;
+  return buildStudentNameLookup(collected);
+}

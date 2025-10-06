@@ -28,7 +28,7 @@
 
 **Request contract:** `{ curriculumId, studentId }` with 200 OK (no body) on success.
 
-**MAS use:** orchestrated assignment flow calls this after planning chooses the next curriculum; log response status and verify via 학생 커리큘럼 목록 조회.
+**MAS use (planned):** assignment automation will call this after planning chooses the next curriculum; log response status and verify via 학생 커리큘럼 목록 조회.
 
 #### 학생 커리큘럼 목록 조회 — `GET /student-curriculums`
 **Purpose:** enumerate every curriculum already linked to a student and expose its remaining workload.
@@ -42,7 +42,7 @@
 
 **Request contract:** `{ studentCurriculumId, scheduledDate (YYYY-MM-DD), duration (minutes) }` with 201 Created (no body) when successful.
 
-**MAS use:** orchestrated dispatcher calls this endpoint after planning daily workload; response status is logged as the canonical proof of delivery.
+**MAS use (planned):** the dispatcher will call this endpoint after planning daily workload; response status is logged as the canonical proof of delivery.
 
 #### 학생 목록 조회 — `GET /students`
 **Purpose:** retrieve the roster of students tied to the teacher account, including validity flags.
@@ -51,7 +51,7 @@
 
 **MAS use:** maintain the student directory, confirm active matches before scheduling, and refresh Supabase mirrors of roster metadata.
 
-#### 학습스케줄 목록 조회 — `GET /teacher/study-schedules`
+#### 학습스케줄 목록 조회 — `GET /study-schedules`
 **Purpose:** fetch the per-day schedule bundles alongside lesson/unit-level performance signals.
 
 **Key payload:** top-level `studySchedule` (date/time window, total minutes, student info) and nested `studyLessons` → `studyUnits` with correctness and confidence values.
@@ -91,7 +91,7 @@ Staging area for proposed study plan updates before QA approval (`student_id`, d
 Short-Term Automation State
 
 
-`draft_cache` holds temporary orchestration context (keys prefixed with `draft:*`), including an `expires_at` timestamp so entries self-expire after the run. `student_recent_scores` stores the last three performance scores per student for quick lookups by the lesson picker.
+`draft_cache` is reserved for temporary orchestration context (keys prefixed with `draft:*`), including an `expires_at` timestamp so entries self-expire after the run once multi-step automation returns. `student_recent_scores` stores the last three performance scores per student for quick lookups by the lesson picker when it is reintroduced.
 
 B. Taxonomy & Catalog Mirrors
 Question Type Taxonomy
@@ -340,7 +340,7 @@ MAS Decision Log → MAS Action Execution Log: one-to-many (one decision can yie
 
 
 ## 5) Manager MAS Operational Flow
-The Orchestrator agent is the control plane. It triggers the daily and weekly pipelines, invokes downstream agents in sequence, and records success/failure in `service_log`. It forwards context (like the current study plan version) but does not make LLM calls. When deeper reasoning is needed, it delegates to the Study Plan Editor (GPT‑5) or other specialized agents.
+When the Orchestrator agent is rebuilt it will resume acting as the control plane. It will trigger the daily and weekly pipelines, invoke downstream agents in sequence, and record success/failure in `service_log`. It forwards context (like the current study plan version) but does not make LLM calls. When deeper reasoning is needed, it delegates to the Study Plan Editor (GPT‑5) or other specialized agents.
 Daily cycle (per student)
 Sync intake (call 커리큘럼 목록 조회 for catalog refresh when needed, plus 학생 커리큘럼 목록 조회, 학습스케줄 목록 조회, and 학생 목록 조회):
 

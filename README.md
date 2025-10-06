@@ -25,8 +25,9 @@ To support this workflow, the system stores its own records for:
 
 - `apps/chat/` – streaming Responses API orchestrator (primary instructor interface).
 - `apps/chat-ui/` – teacher-facing chat console that renders streaming output and tool progress.
+- `apps/auth/` – session management endpoints for the chat console.
+- `apps/admin-audit/`, `apps/assessments/`, `apps/performance-recorder/`, `apps/platform-sync/` – data ingestion and reporting endpoints that keep Supabase mirrors fresh.
 - `scripts/chat-dev-server.ts` – local runner serving both the chat API and UI together.
-- `apps/` – remaining Vercel serverless functions for background agents.
 - `packages/` – shared libraries.
 - `supabase/` – database migrations for PostgreSQL.
 - `.github/workflows/` – scheduled GitHub Action workflows.
@@ -39,10 +40,13 @@ To support this workflow, the system stores its own records for:
 npm install
 ```
 
-2. Copy `.env.example` to `.env` and fill in credentials for Supabase, OpenAI, Slack, set `STUDYPLAN_EDITOR_URL`, `ORCHESTRATOR_URL`, and configure the platform base URL (`SUPERFASTSAT_API_URL`).
- - If the platform team provides a long-lived key, set `SUPERFASTSAT_API_TOKEN`.
- - Otherwise leave the token blank; instructors sign in from chat using `login email@example.com password` before running platform operations.
- - Configure `ASSIGNMENTS_URL` for the supplemental agent, plus secrets `ORCHESTRATOR_SECRET` and `SCHEDULER_SECRET`. Optionally adjust `DRAFT_TTL` (seconds for `draft:*` keys).
+2. Copy `.env.example` to `.env` and set the required secrets:
+   - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+   - `OPENAI_API_KEY`
+   - `NOTIFICATION_BOT_URL` for Slack/alert relay
+   - `SUPERFASTSAT_API_URL` (and optionally `SUPERFASTSAT_API_TOKEN` if you have a static teacher key)
+   - Adjust `DRAFT_TTL` if you want to change the temporary cache lifetime
+   - If the platform team does not provide a long-lived token, leave `SUPERFASTSAT_API_TOKEN` blank. Instructors authenticate from chat with `login email@example.com password` before calling platform operations.
 
 3. Run type checks:
 
@@ -68,27 +72,12 @@ The server prints both the UI (`/api/chat-ui`) and API (`/api/chat`) URLs.
 - Render blueprint (`render.yaml`) provisions a managed web service; follow `docs/deploy/render.md` for step-by-step deployment.
 - Push the repo to GitHub and enable CI + branch protections using `docs/deploy/github.md`.
 - Supabase migrations should be applied during deployment using the Supabase CLI, e.g. `supabase db push`. The latest migration adds `platform_student_id` to `students` and `student_curriculum_id` to the platform mirrors; populate these before switching traffic to minutes-based dispatching.
-- GitHub Actions workflow `scheduler.yml` triggers the scheduler endpoint at 07:00 daily and 23:00 Friday, which in turn invokes the orchestrator with the appropriate `run_type`.
 
 ## Notes
 
 Tables `performances`, `assignments`, and historical studyplans (`curricula`) are append-only. The `students.current_curriculum_version` column storing the active studyplan is mutable.
 
 ## API
-
-### Scheduler
-
-`POST /api/scheduler?run_type=daily|weekly`
-
-Headers:
-
-- `Authorization: Bearer <SCHEDULER_SECRET>`
-
-Environment variables:
-
-- `ORCHESTRATOR_URL` – URL of the orchestrator endpoint.
-- `ORCHESTRATOR_SECRET` – secret used when calling the orchestrator.
-- `SCHEDULER_SECRET` – secret required to invoke the scheduler endpoint.
 
 ### Performance Recorder
 
@@ -101,3 +90,39 @@ Body parameters:
 - `platform_curriculum_id` – external curriculum identifier (platform)
 - `score` – numeric performance score
 - `confidence_rating` – optional numeric rating representing the student's confidence
+
+### Platform Sync
+
+`POST /api/platform-sync`
+
+Body parameters (all optional):
+
+- `dispatches` – array of platform dispatch rows to upsert into Supabase mirrors
+- `daily_performance` – array of performance payloads mirroring the platform's study schedule summaries
+
+If no body is provided, the endpoint will attempt to pull fresh data from the platform APIs for each active student using the configured Supabase roster.
+
+### Assessments
+
+`POST /api/assessments`
+
+Body parameters:
+
+- `student_id` – UUID of the student
+- `type` – assessment flavor (`diagnostic` or `full-length`)
+- `sections` – array of `{ section, correct, total }` objects to score and persist
+
+The endpoint estimates per-section and composite scores, stores the assessment record, and returns the new record ID along with the composite score and confidence estimate.
+
+### Admin Audit
+
+`GET /api/admin-audit`
+
+Query parameters:
+
+- `student_id` – optional UUID to scope the results
+- `since` / `until` – optional ISO timestamps to bound the time window
+- `include_dispatch` – set to `true` to include dispatch log mirrors
+- `limit` – optional result cap (default 200, maximum 1000)
+
+The endpoint returns recent MAS decisions, related actions, and (optionally) dispatch log snapshots for quick review.
