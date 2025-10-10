@@ -1,4 +1,9 @@
 import { supabase } from '../../packages/shared/supabase';
+import {
+  loadQuestionTypeLookup,
+  normalizeQuestionTypeReference,
+  QuestionTypeLookup,
+} from '../../packages/shared/questionTypes';
 
 export const PROGRESS_LOOKBACK_DAYS = parseInt(process.env.STUDY_PLAN_PROGRESS_LOOKBACK_DAYS ?? '14', 10);
 const MASTERED_SCORE_THRESHOLD = 90;
@@ -109,11 +114,38 @@ export function evaluateQuestionTypeProgress(
 
 type PerformanceRow = {
   question_type?: string | null;
+  question_type_id?: string | null;
+  canonical_path?: string | null;
   score?: number | null;
   confidence_rating?: number | null;
   timestamp?: string | null;
   study_plan_id?: string | null;
 };
+
+function normalizeLabel(value?: string | null): string | null {
+  if (!value || typeof value !== 'string') return null;
+  return value.trim().toLowerCase() || null;
+}
+
+function enrichPerformanceRow(
+  row: PerformanceRow,
+  lookup: QuestionTypeLookup
+): PerformanceRow | null {
+  const normalized = normalizeQuestionTypeReference(lookup, {
+    question_type: row.question_type ?? null,
+    question_type_id: row.question_type_id ?? null,
+    canonical_path: row.canonical_path ?? null,
+  });
+  if (!normalized.question_type && !normalized.question_type_id) {
+    return null;
+  }
+  return {
+    ...row,
+    question_type: normalized.question_type ?? row.question_type ?? null,
+    question_type_id: normalized.question_type_id ?? null,
+    canonical_path: normalized.canonical_path ?? row.canonical_path ?? null,
+  };
+}
 
 export function computeProgressRows(
   studentId: string,
@@ -123,21 +155,40 @@ export function computeProgressRows(
   now = new Date()
 ) {
   const groups = new Map<string, PerformanceRow[]>();
+  const metadata = new Map<
+    string,
+    {
+      label: string;
+      question_type_id: string | null;
+    }
+  >();
   for (const row of performances) {
-    const qtypeRaw = row.question_type?.trim();
-    if (!qtypeRaw) continue;
-    const qtype = qtypeRaw.toLowerCase();
-    if (!groups.has(qtype)) groups.set(qtype, []);
-    groups.get(qtype)!.push(row);
+    const raw = row.question_type?.trim();
+    const canonical = row.canonical_path?.trim();
+    const qtypeId = row.question_type_id ?? null;
+    const label = canonical || raw;
+    if (!label && !qtypeId) continue;
+    const key = qtypeId ?? normalizeLabel(label!) ?? null;
+    if (!key) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(row);
+    if (!metadata.has(key)) {
+      metadata.set(key, {
+        label: canonical || raw || key,
+        question_type_id: qtypeId,
+      });
+    }
   }
 
   const result: any[] = [];
   for (const [questionType, samples] of groups.entries()) {
     const evaluation = evaluateQuestionTypeProgress(samples, now, lookbackDays);
+    const meta = metadata.get(questionType);
     result.push({
       student_id: studentId,
       study_plan_id: studyPlanId,
-      question_type: questionType,
+      question_type: meta?.label ?? questionType,
+      question_type_id: meta?.question_type_id ?? null,
       status: evaluation.status,
       evidence_window: evaluation.evidence_window,
       rolling_metrics: evaluation.rolling_metrics,
@@ -160,6 +211,8 @@ export async function updateStudyPlanProgress(
     .select('id, current_curriculum_version, active')
     .eq('active', true);
 
+  const questionTypeLookup = await loadQuestionTypeLookup(client);
+
   for (const student of students ?? []) {
     try {
       const version = (student as any).current_curriculum_version;
@@ -176,7 +229,7 @@ export async function updateStudyPlanProgress(
 
       const { data: performanceRows } = await client
         .from('performances')
-        .select('question_type, score, confidence_rating, timestamp, study_plan_id')
+        .select('question_type, question_type_id, score, confidence_rating, timestamp, study_plan_id')
         .eq('student_id', studentId)
         .gte('timestamp', sinceIso);
 
@@ -204,16 +257,39 @@ export async function updateStudyPlanProgress(
         }
       }
 
-      const curriculumTypeMap = new Map<string, string>();
+      const curriculumTypeMap = new Map<
+        string,
+        {
+          question_type_id: string | null;
+          canonical_path: string | null;
+          display_name: string | null;
+        }
+      >();
       if (curriculumIds.size > 0) {
         const { data: catalogRows } = await client
           .from('curriculum_catalog')
-          .select('external_curriculum_id, question_types(canonical_path)')
+          .select('external_curriculum_id, question_types(id, canonical_path, display_name)')
           .in('external_curriculum_id', Array.from(curriculumIds));
         for (const row of catalogRows ?? []) {
           const key = String((row as any).external_curriculum_id);
-          const canonical = (row as any).question_types?.canonical_path ?? null;
-          if (canonical) curriculumTypeMap.set(key, canonical);
+          const qType = (row as any).question_types ?? {};
+          let canonical = qType?.canonical_path ?? null;
+          const qid = qType?.id ?? null;
+          let displayName = qType?.display_name ?? null;
+          if (!canonical && qid) {
+            const meta = questionTypeLookup.byId.get(qid);
+            if (meta) {
+              canonical = meta.canonical_path ?? canonical;
+              displayName = displayName ?? meta.display_name ?? null;
+            }
+          }
+          if (canonical || qid) {
+            curriculumTypeMap.set(key, {
+              question_type_id: qid,
+              canonical_path: canonical,
+              display_name: displayName,
+            });
+          }
         }
       }
 
@@ -222,8 +298,16 @@ export async function updateStudyPlanProgress(
           const curriculumId =
             row?.platform_curriculum_id != null ? String(row.platform_curriculum_id) : null;
           if (!curriculumId) return null;
-          const questionType = curriculumTypeMap.get(curriculumId);
-          if (!questionType) return null;
+          const info = curriculumTypeMap.get(curriculumId);
+          if (!info) return null;
+          const meta = info.question_type_id ? questionTypeLookup.byId.get(info.question_type_id) : undefined;
+          const questionType =
+            info.canonical_path ??
+            meta?.canonical_path ??
+            info.display_name ??
+            meta?.display_name ??
+            null;
+          const questionTypeId = info.question_type_id ?? null;
           const score =
             typeof row?.is_correct === 'boolean' ? (row.is_correct ? 100 : 0) : null;
           const confidence =
@@ -234,6 +318,8 @@ export async function updateStudyPlanProgress(
           const timestamp = date ? `${date}T00:00:00.000Z` : null;
           return {
             question_type: questionType,
+            question_type_id: questionTypeId,
+            canonical_path: info.canonical_path ?? meta?.canonical_path ?? null,
             score,
             confidence_rating: confidence,
             timestamp,
@@ -247,8 +333,16 @@ export async function updateStudyPlanProgress(
           const curriculumId =
             row?.external_curriculum_id != null ? String(row.external_curriculum_id) : null;
           if (!curriculumId) return null;
-          const questionType = curriculumTypeMap.get(curriculumId);
-          if (!questionType) return null;
+          const info = curriculumTypeMap.get(curriculumId);
+          if (!info) return null;
+          const meta = info.question_type_id ? questionTypeLookup.byId.get(info.question_type_id) : undefined;
+          const questionType =
+            info.canonical_path ??
+            meta?.canonical_path ??
+            info.display_name ??
+            meta?.display_name ??
+            null;
+          const questionTypeId = info.question_type_id ?? null;
           const score =
             row?.avg_correctness != null && Number.isFinite(Number(row.avg_correctness))
               ? Number(row.avg_correctness)
@@ -261,6 +355,8 @@ export async function updateStudyPlanProgress(
           const timestamp = date ? `${date}T00:00:00.000Z` : null;
           return {
             question_type: questionType,
+            question_type_id: questionTypeId,
+            canonical_path: info.canonical_path ?? meta?.canonical_path ?? null,
             score,
             confidence_rating: confidence,
             timestamp,
@@ -269,11 +365,25 @@ export async function updateStudyPlanProgress(
         })
         .filter((row): row is PerformanceRow => Boolean(row && row.question_type));
 
-      const relevant = (performanceRows ?? []).filter(
-        (row: PerformanceRow) => !row.study_plan_id || row.study_plan_id === studyPlanId
-      );
+      const relevant: PerformanceRow[] = (performanceRows ?? [])
+        .filter((row: PerformanceRow) => !row.study_plan_id || row.study_plan_id === studyPlanId)
+        .map((row: any) => ({
+          question_type: row?.question_type ?? null,
+          question_type_id: row?.question_type_id ?? null,
+          canonical_path: null,
+          score: row?.score ?? null,
+          confidence_rating: row?.confidence_rating ?? null,
+          timestamp: row?.timestamp ?? null,
+          study_plan_id: row?.study_plan_id ?? null,
+        }));
+
       const combined = [...relevant, ...unitSamples, ...summarySamples];
-      const updates = computeProgressRows(studentId, studyPlanId, combined, lookbackDays, new Date());
+
+      const enriched = combined
+        .map((row) => enrichPerformanceRow(row, questionTypeLookup))
+        .filter((row): row is PerformanceRow => Boolean(row && (row.question_type || row.question_type_id)));
+
+      const updates = computeProgressRows(studentId, studyPlanId, enriched, lookbackDays, new Date());
       if (updates.length) {
         await client
           .from('study_plan_progress')

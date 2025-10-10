@@ -72,25 +72,62 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   assert.equal(evaluation.evidence_window.sample_size, 6);
   assert(evaluation.rolling_metrics.average_confidence && evaluation.rolling_metrics.average_confidence >= 0.85);
 
+  const algebraId = '11111111-aaaa-bbbb-cccc-000000000001';
+  const geometryId = '11111111-aaaa-bbbb-cccc-000000000002';
+  const algebraCanonical = 'math > algebra > linear equations in one variable';
+  const geometryCanonical = 'math > geometry and trigonometry > lines, angles, and triangles';
+
   const progressRows = computeProgressRows(
     'student-1',
     'plan-1',
     [
-      { question_type: 'Algebra', score: 88, confidence_rating: 0.8, timestamp: '2024-01-01T00:00:00.000Z' },
-      { question_type: 'Algebra', score: 90, confidence_rating: 0.82, timestamp: '2024-01-02T00:00:00.000Z' },
-      { question_type: 'Algebra', score: 92, confidence_rating: 0.83, timestamp: '2024-01-03T00:00:00.000Z' },
-      { question_type: 'Geometry', score: 60, confidence_rating: 0.6, timestamp: '2024-01-01T00:00:00.000Z' },
-      { question_type: 'Geometry', score: 65, confidence_rating: 0.55, timestamp: '2024-01-04T00:00:00.000Z' },
+      {
+        question_type: algebraCanonical,
+        question_type_id: algebraId,
+        score: 88,
+        confidence_rating: 0.8,
+        timestamp: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        question_type: algebraCanonical,
+        question_type_id: algebraId,
+        score: 90,
+        confidence_rating: 0.82,
+        timestamp: '2024-01-02T00:00:00.000Z',
+      },
+      {
+        question_type: algebraCanonical,
+        question_type_id: algebraId,
+        score: 92,
+        confidence_rating: 0.83,
+        timestamp: '2024-01-03T00:00:00.000Z',
+      },
+      {
+        question_type: geometryCanonical,
+        question_type_id: geometryId,
+        score: 60,
+        confidence_rating: 0.6,
+        timestamp: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        question_type: geometryCanonical,
+        question_type_id: geometryId,
+        score: 65,
+        confidence_rating: 0.55,
+        timestamp: '2024-01-04T00:00:00.000Z',
+      },
     ],
     14,
     new Date('2024-01-10T00:00:00.000Z')
   );
-  const algebra = progressRows.find((r) => r.question_type === 'algebra');
-  const geometry = progressRows.find((r) => r.question_type === 'geometry');
+  const algebra = progressRows.find((r) => r.question_type_id === algebraId);
+  const geometry = progressRows.find((r) => r.question_type_id === geometryId);
   assert(algebra);
   assert.equal(algebra?.status, 'near_mastery');
+  assert.equal(algebra?.question_type, algebraCanonical);
   assert(geometry);
   assert.equal(geometry?.status, 'in_progress');
+  assert.equal(geometry?.question_type, geometryCanonical);
 
   console.log('Progress evaluation covers mastery thresholds');
 

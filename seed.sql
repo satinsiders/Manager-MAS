@@ -1,9 +1,12 @@
-insert into question_types (id, domain, category, specific_type, canonical_path)
-values ('11111111-1111-1111-1111-111111111111', 'Math', 'Algebra', 'Linear Equations', 'Math > Algebra > Linear Equations')
-on conflict (id) do nothing;
-
+with algebra_qtype as (
+  select id
+  from question_types
+  where canonical_path = 'math > algebra > linear equations in one variable'
+  limit 1
+)
 insert into curriculum_catalog (external_curriculum_id, raw_title, question_type_id, subtype, active)
-values ('demo-curriculum', 'Algebra Fundamentals', '11111111-1111-1111-1111-111111111111', 'core', true)
+select 'demo-curriculum', 'Algebra Fundamentals', id, 'core', true
+from algebra_qtype
 on conflict (external_curriculum_id) do update
   set raw_title = excluded.raw_title,
       question_type_id = excluded.question_type_id,

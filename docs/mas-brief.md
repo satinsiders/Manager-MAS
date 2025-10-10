@@ -62,7 +62,12 @@ Planned rebuilds (removed from the current codebase but kept in documentation fo
 | `studyplan_drafts` | `version, student_id, studyplan_json, rationale, created_by` | Proposed studyplans awaiting QA |
 | `studyplan_versions` | `version, student_id, studyplan_json, policy_version, effective_at, superseded_at` | Immutable history powering audits |
 | `studyplans` | `id, student_id, current_version_id, status, constraints_json` | Pointer to the active plan orchestrated by MAS |
-| `studyplan_progress` | `id, student_id, question_type_id, mastery_state, evidence_window_json, last_decided_at` | Rolling mastery tracking per question type |
+| `assessments` | `id, code, name, total_questions, total_minutes, description, source_url` | Catalog of supported exams (e.g., Digital SAT) |
+| `assessment_sections` | `id, assessment_id, code, name, order_index, total_questions, total_minutes, module_count, description, notes` | Section-level structure inside each assessment |
+| `assessment_modules` | `id, section_id, code, name, order_index, question_count, time_minutes, adaptive, notes` | Timing and adaptive flags for each module |
+| `question_type_domains` | `id, section_id, code, name, description, approx_question_percentage, questions_min, questions_max, grouping_notes` | Domain/category metadata (e.g., Information & Ideas, Algebra) |
+| `question_type_mastery` (view) | `study_plan_progress_id, student_id, assessment_code, section_code, domain_code, canonical_path, status, evidence_window, rolling_metrics` | Enriched mastery context for agents/chatbots |
+| `studyplan_progress` | `id, student_id, study_plan_id, question_type, question_type_id, status, evidence_window, rolling_metrics, last_decision_at` | Rolling mastery tracking per question type |
 | `dispatch_mirror` | `student_id, platform_curriculum_id, student_curriculum_id, total_duration, remaining_duration, first_dispatched_at, last_dispatched_at` | Mirror of platform assignments for eligibility checks |
 | `daily_performance_mirror` | `student_id, scheduled_date, platform_curriculum_id, stats_json, ingestion_timestamp` | Lesson/unit performance per dispatched bundle |
 | `dispatch_log` | `id, student_id, platform_curriculum_id, study_plan_version_id, sent_at, channel, status, payload` | MAS Action Execution Log (platform API attempts + fingerprints) |

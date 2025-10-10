@@ -28,6 +28,11 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
   };
 
   (supabase as any).from = (table: string) => {
+    if (table === 'question_types') {
+      return {
+        select: async () => ({ data: [] }),
+      };
+    }
     if (table === 'performances') {
       return {
         insert(fields: any) {
@@ -77,6 +82,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
       study_plan_id: 'sp1',
       platform_curriculum_id: 'ext-cur-123',
       question_type: 'math',
+      question_type_id: undefined,
     },
   } as any;
   const res: any = { status() { return { json() {} }; } };
@@ -91,6 +97,7 @@ process.env.SCHEDULER_SECRET = 'sched-secret';
     study_plan_id: 'sp1',
     platform_curriculum_id: 'ext-cur-123',
     question_type: 'math',
+    question_type_id: null,
   });
   assert.deepStrictEqual(store.student_recent_scores?.scores, [80]);
   assert.equal(store.student_recent_scores?.student_id, 's1');

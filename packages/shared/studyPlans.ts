@@ -53,10 +53,51 @@ export type StudyPlanDraftRecord = {
 export type StudyPlanProgressRecord = {
   id: string;
   question_type: string;
+  question_type_id?: string | null;
   status: string;
   evidence_window: Record<string, unknown> | null;
   rolling_metrics: Record<string, unknown> | null;
   last_decision_at: string | null;
+  context?: {
+    canonical_path?: string | null;
+    display_name?: string | null;
+    domain?: string | null;
+    category?: string | null;
+    specific_type?: string | null;
+    skill_code?: string | null;
+    skill_description?: string | null;
+    source_url?: string | null;
+    metadata?: Record<string, unknown> | null;
+    assessment?: {
+      code?: string | null;
+      reference_code?: string | null;
+      name?: string | null;
+      total_questions?: number | null;
+      total_minutes?: number | null;
+      description?: string | null;
+      source_url?: string | null;
+    };
+    section?: {
+      code?: string | null;
+      reference_code?: string | null;
+      name?: string | null;
+      total_questions?: number | null;
+      total_minutes?: number | null;
+      module_count?: number | null;
+      description?: string | null;
+      notes?: string | null;
+    };
+    domain_summary?: {
+      code?: string | null;
+      name?: string | null;
+      description?: string | null;
+      approx_question_percentage?: number | null;
+      questions_min?: number | null;
+      questions_max?: number | null;
+      grouping_notes?: string | null;
+      source_url?: string | null;
+    };
+  };
 };
 
 export type StudentWithStudyPlan = {
@@ -397,22 +438,65 @@ export async function getStudentStudyPlanSnapshot(
       : (async () => {
           if (!activePlan) return [] as StudyPlanProgressRecord[];
           const { data: progressRows, error: progressError } = await client
-            .from('study_plan_progress')
-            .select('id, question_type, status, evidence_window, rolling_metrics, last_decision_at')
+            .from('question_type_mastery')
+            .select(
+              'study_plan_progress_id, question_type, question_type_id, status, evidence_window, rolling_metrics, last_decision_at, canonical_path, display_name, domain, category, specific_type, skill_code, skill_description, source_url, metadata, assessment_code, assessment_code_reference, assessment_name, assessment_total_questions, assessment_total_minutes, assessment_description, assessment_source_url, section_code, section_code_reference, section_name, section_total_questions, section_total_minutes, section_module_count, section_description, section_notes, domain_code, domain_name, domain_description, approx_question_percentage, questions_min, questions_max, grouping_notes, domain_source_url'
+            )
             .eq('student_id', studentId)
             .eq('study_plan_id', activePlan.id)
             .order('last_decision_at', { ascending: false })
-            .limit(25);
+            .limit(50);
           if (progressError) {
             throw new Error(`Failed to load study plan progress: ${progressError.message}`);
           }
-          return (progressRows ?? []).map((row) => ({
-            id: row.id,
-            question_type: row.question_type,
+          return (progressRows ?? []).map((row: any) => ({
+            id: row.study_plan_progress_id,
+            question_type: row.question_type ?? row.canonical_path ?? row.display_name ?? row.specific_type ?? 'unknown',
+            question_type_id: row.question_type_id ?? null,
             status: row.status,
             evidence_window: row.evidence_window ?? null,
             rolling_metrics: row.rolling_metrics ?? null,
             last_decision_at: row.last_decision_at ?? null,
+            context: {
+              canonical_path: row.canonical_path ?? null,
+              display_name: row.display_name ?? null,
+              domain: row.domain ?? null,
+              category: row.category ?? null,
+              specific_type: row.specific_type ?? null,
+              skill_code: row.skill_code ?? null,
+              skill_description: row.skill_description ?? null,
+              source_url: row.source_url ?? null,
+              metadata: row.metadata ?? null,
+              assessment: {
+                code: row.assessment_code ?? null,
+                reference_code: row.assessment_code_reference ?? null,
+                name: row.assessment_name ?? null,
+                total_questions: row.assessment_total_questions ?? null,
+                total_minutes: row.assessment_total_minutes ?? null,
+                description: row.assessment_description ?? null,
+                source_url: row.assessment_source_url ?? null,
+              },
+              section: {
+                code: row.section_code ?? null,
+                reference_code: row.section_code_reference ?? null,
+                name: row.section_name ?? null,
+                total_questions: row.section_total_questions ?? null,
+                total_minutes: row.section_total_minutes ?? null,
+                module_count: row.section_module_count ?? null,
+                description: row.section_description ?? null,
+                notes: row.section_notes ?? null,
+              },
+              domain_summary: {
+                code: row.domain_code ?? null,
+                name: row.domain_name ?? null,
+                description: row.domain_description ?? null,
+                approx_question_percentage: row.approx_question_percentage ?? null,
+                questions_min: row.questions_min ?? null,
+                questions_max: row.questions_max ?? null,
+                grouping_notes: row.grouping_notes ?? null,
+                source_url: row.domain_source_url ?? null,
+              },
+            },
           }));
         })(),
   ]);
